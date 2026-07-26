@@ -47,11 +47,11 @@ const W_STOCK: f32 = 86.0;
 const ROW_ALT_BG: Color = Color::srgb_u8(33, 33, 33);
 /// Column / row separator inside the table.
 const GRID_LINE: Color = Color::srgb_u8(46, 46, 46);
-/// The `ATTRIBUTES` section rule. Deliberately brighter than the
-/// `#2B2B2B` it is meant to read as: a 1px `divider()` renders at only
-/// ~35% coverage in this build, so a token-valued hairline lands ~40%
-/// too faint (see the gap list in the module docs).
-const ATTR_RULE: Color = Color::srgb_u8(80, 80, 80);
+/// The `ATTRIBUTES` section rule (`#2B2B2B`). Was brightened to 80 to
+/// compensate for the inside-band AA bug that rendered 1px fills at
+/// ~35% coverage; the centered AA band fixed that, so the token value
+/// reads at full contrast again.
+const ATTR_RULE: Color = Color::srgb_u8(43, 43, 43);
 /// Footprint-name column, KiCad's "copper" green.
 const FOOTPRINT_FG: Color = Color::srgb_u8(169, 198, 161);
 /// Inspector action-bar ground, one step below the panel.
