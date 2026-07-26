@@ -250,7 +250,15 @@ Roles apply default size/line-height/weight/color so product code can say what a
 
 ### 3.3 Icons
 
-Use `icon("search")` for built-in vector icons, `icon_button("menu")` for the standard theme-sized icon-only button surface, and `button_with_icon("upload", "Publish")` for label+icon actions. The names intentionally mirror common lucide/shadcn names: `menu`, `search`, `bell`, `layout-dashboard`, `file-text`, `folder`, `users`, `bar-chart`, `git-branch`, `git-commit`, `refresh-cw`, `alert-circle`, `check`, `x`, `plus`, `chevron-right`, and related basics. The built-in set is small — call `all_icon_names()` for the full list. A name outside it renders a fallback `AlertCircle` and is flagged by the lint (`UnknownIconName`), so for a glyph the built-ins don't cover, ship an app SVG via `icon(SvgIcon::parse_current_color(include_str!("…")))` rather than guessing a name.
+Use `icon("search")` for built-in vector icons, `icon_button("menu")` for the standard theme-sized icon-only button surface, and `button_with_icon("upload", "Publish")` for label+icon actions. The names — and the 24×24 stroke geometry — are lucide's own, so reach for the lucide name you already know. The built-in vocabulary covers:
+
+- **Chrome and navigation** — `menu`, `search`, `settings`, `more-horizontal`, `layout-dashboard`, `command`, `plus`, `x`, `check`, `chevron-up`/`-down`/`-left`/`-right`, `arrow-up`/`-down`/`-left`/`-right`, `external-link`, `log-out`, `lock`.
+- **Status and data** — `alert-circle`, `info`, `bell`, `activity`, `bar-chart`, `refresh-cw`, `users`, `wifi`, `globe`.
+- **Files and source control** — `file-text`, `folder`, `upload`, `download`, `paperclip`, `git-branch`, `git-commit`, `code`, `terminal`, `keyboard`.
+- **Audio, video, and messaging** — `mic`, `mic-off`, `headphones`, `headphone-off`, `volume-2`, `volume-x`, `camera`, `screen-share`, `message-square`, `send`, `smile`.
+- **Viewport and object manipulation** — `move`, `rotate-cw`, `rotate-ccw`, `scaling`, `flip-horizontal`, `ruler`, `contrast`.
+
+Call `all_icon_names()` for the authoritative list. A name outside it renders a fallback `AlertCircle` and is flagged by the lint (`UnknownIconName`), so for a glyph the built-ins don't cover, ship an app SVG via `icon(SvgIcon::parse_current_color(include_str!("…")))` rather than guessing a name.
 
 Icons are normal `El`s: tint them with `.color(...)` / `.text_color(...)` — built-ins are `currentColor` masks, so they inherit text color; there is no `.icon_color(...)`. Set `.icon_size(...)`, `.icon_stroke_width(...)`, width/height, padding, or put them inside rows the same way as text. Prefer the icon-size tokens (`tokens::ICON_XS` = 14, `tokens::ICON_SM` = 16, `tokens::ICON_MD` = 20, `tokens::ICON_LG` = 24, `tokens::ICON_XL` = 40 for empty-state / hero icons) over borrowing typography tokens for icon geometry. Tree dumps show `icon=<name>`, draw-op artifacts include `Icon` records, and the SVG fallback renders the vector path directly. The wgpu renderer, browser WebGPU path, and Vulkano renderer all render SVG-backed vector geometry through the shared vector mesh.
 
