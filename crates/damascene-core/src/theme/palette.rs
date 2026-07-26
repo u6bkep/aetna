@@ -28,15 +28,23 @@
 //! foreground pairs for surfaces and actions, plus border, input, ring,
 //! and semantic status roles. Link, scrollbar, overlay, and selection
 //! tokens are component/domain extensions.
+//!
+//! The vocabulary is open at the edges: [`Palette::with_token`] registers
+//! any additional name, the way `var(--layer-01)` works on the web once
+//! you declare it. Registered names swap with the palette; unregistered
+//! ones keep passing through with their baked rgba, which is how
+//! theme-invariant tokens stay theme-invariant.
 
 // Lock in full per-item documentation for this module (issue #73).
 #![warn(missing_docs)]
 
 use crate::tree::Color;
+use std::collections::BTreeMap;
 
 /// Runtime backing for the design-token color vocabulary.
 ///
-/// One field per theme-variant token.
+/// One field per theme-variant token, plus [`Palette::extra`] for names a
+/// design system mints itself.
 #[derive(Clone, Debug)]
 pub struct Palette {
     // Core shadcn-shaped semantic colors.
@@ -115,6 +123,12 @@ pub struct Palette {
     pub selection_bg: Color,
     /// Text-selection band while the input lacks focus — backs the `selection-bg-unfocused` token.
     pub selection_bg_unfocused: Color,
+
+    /// Token names minted outside the vocabulary above, registered via
+    /// [`Palette::with_token`]. Consulted by [`Palette::lookup`] only
+    /// after the built-in names miss, so a stock name can never be
+    /// shadowed.
+    pub extra: BTreeMap<&'static str, Color>,
 }
 
 impl Palette {
@@ -172,6 +186,8 @@ impl Palette {
 
             selection_bg: Color::srgb_token("selection-bg", 96, 165, 250, 96),
             selection_bg_unfocused: Color::srgb_token("selection-bg-unfocused", 113, 113, 122, 64),
+
+            extra: BTreeMap::new(),
         }
     }
 
@@ -228,6 +244,8 @@ impl Palette {
 
             selection_bg: Color::srgb_token("selection-bg", 37, 99, 235, 64),
             selection_bg_unfocused: Color::srgb_token("selection-bg-unfocused", 113, 113, 122, 56),
+
+            extra: BTreeMap::new(),
         }
     }
 
@@ -287,6 +305,8 @@ impl Palette {
 
             selection_bg: Color::srgb_token("selection-bg", 0, 144, 255, 96),
             selection_bg_unfocused: Color::srgb_token("selection-bg-unfocused", 105, 110, 119, 64),
+
+            extra: BTreeMap::new(),
         }
     }
 
@@ -342,6 +362,8 @@ impl Palette {
 
             selection_bg: Color::srgb_token("selection-bg", 0, 144, 255, 64),
             selection_bg_unfocused: Color::srgb_token("selection-bg-unfocused", 139, 141, 152, 56),
+
+            extra: BTreeMap::new(),
         }
     }
 
@@ -410,6 +432,8 @@ impl Palette {
 
             selection_bg: Color::srgb_token("selection-bg", 255, 197, 61, 96),
             selection_bg_unfocused: Color::srgb_token("selection-bg-unfocused", 111, 109, 102, 64),
+
+            extra: BTreeMap::new(),
         }
     }
 
@@ -465,6 +489,8 @@ impl Palette {
 
             selection_bg: Color::srgb_token("selection-bg", 255, 197, 61, 64),
             selection_bg_unfocused: Color::srgb_token("selection-bg-unfocused", 141, 141, 134, 56),
+
+            extra: BTreeMap::new(),
         }
     }
 
@@ -533,6 +559,8 @@ impl Palette {
 
             selection_bg: Color::srgb_token("selection-bg", 110, 86, 207, 96),
             selection_bg_unfocused: Color::srgb_token("selection-bg-unfocused", 111, 109, 120, 64),
+
+            extra: BTreeMap::new(),
         }
     }
 
@@ -588,6 +616,8 @@ impl Palette {
 
             selection_bg: Color::srgb_token("selection-bg", 110, 86, 207, 64),
             selection_bg_unfocused: Color::srgb_token("selection-bg-unfocused", 142, 140, 153, 56),
+
+            extra: BTreeMap::new(),
         }
     }
 
@@ -598,6 +628,20 @@ impl Palette {
         } else {
             Self::radix_mauve_violet_light()
         }
+    }
+
+    /// Register an additional token name, so colors carrying it resolve
+    /// against this palette instead of painting their baked rgba. This is
+    /// how a design system mints its own vocabulary
+    /// (`Color::srgb_token("layer-01", …)`) and keeps it swappable.
+    ///
+    /// The stock token names above are matched first and cannot be
+    /// overridden this way; registering one of them stores an entry
+    /// [`Palette::lookup`] will never reach. Registering the same extra
+    /// name twice keeps the last color.
+    pub fn with_token(mut self, name: &'static str, color: Color) -> Self {
+        self.extra.insert(name, color);
+        self
     }
 
     /// Replace `c`'s rgb with this palette's value for its token name,
@@ -624,9 +668,11 @@ impl Palette {
         }
     }
 
-    /// Resolve a token name to its rgba in this palette. Returns `None`
-    /// for theme-invariant tokens (the renderer falls back to the
-    /// `Color`'s baked rgba) and for unknown names.
+    /// Resolve a token name to its rgba in this palette, checking the
+    /// stock vocabulary first and then the names registered with
+    /// [`Palette::with_token`]. Returns `None` for theme-invariant tokens
+    /// (the renderer falls back to the `Color`'s baked rgba) and for
+    /// unknown names.
     pub fn lookup(&self, token: &str) -> Option<Color> {
         Some(match token {
             "background" => self.background,
@@ -660,7 +706,7 @@ impl Palette {
             "scrollbar-thumb-active" => self.scrollbar_thumb_fill_active,
             "selection-bg" => self.selection_bg,
             "selection-bg-unfocused" => self.selection_bg_unfocused,
-            _ => return None,
+            _ => return self.extra.get(token).copied(),
         })
     }
 }
@@ -791,6 +837,51 @@ mod tests {
             (resolved.r, resolved.g, resolved.b),
             (light.card.r, light.card.g, light.card.b),
         );
+    }
+
+    #[test]
+    fn with_token_round_trips_through_lookup() {
+        let layer = Color::srgb_u8a(38, 38, 38, 255);
+        let p = Palette::damascene_dark().with_token("layer-01", layer);
+        assert_eq!(p.lookup("layer-01"), Some(layer));
+    }
+
+    #[test]
+    fn registered_token_resolves_and_unregistered_passes_through() {
+        let layer = Color::srgb_u8a(38, 38, 38, 255);
+        let p = Palette::damascene_dark().with_token("layer-01", layer);
+
+        // Registered: rgb comes from the palette, the token name survives.
+        let authored = Color::srgb_token("layer-01", 1, 2, 3, 255);
+        let resolved = p.resolve(authored);
+        assert_eq!(
+            (resolved.r, resolved.g, resolved.b),
+            (layer.r, layer.g, layer.b)
+        );
+        assert_eq!(resolved.token, Some("layer-01"));
+
+        // Unregistered: still the documented silent passthrough.
+        let invariant = Color::srgb_token("layer-02", 1, 2, 3, 255);
+        assert_eq!(p.resolve(invariant), invariant);
+    }
+
+    #[test]
+    fn stock_names_shadow_extra_entries() {
+        let hot_pink = Color::srgb_u8a(255, 0, 255, 255);
+        let p = Palette::damascene_dark().with_token("card", hot_pink);
+        assert_eq!(p.lookup("card"), Some(p.card));
+        assert_ne!(p.lookup("card"), Some(hot_pink));
+        assert_eq!(p.resolve(tokens::CARD), tokens::CARD);
+    }
+
+    #[test]
+    fn palette_constructors_stay_const() {
+        // `BTreeMap::new()` is const-stable, so the open namespace must
+        // not cost the palette constructors their const-ness.
+        const DARK: Palette = Palette::damascene_dark();
+        const LIGHT: Palette = Palette::damascene_light();
+        assert_eq!(DARK.background, Palette::damascene_dark().background);
+        assert!(LIGHT.extra.is_empty());
     }
 
     #[test]
