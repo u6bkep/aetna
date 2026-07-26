@@ -64,8 +64,9 @@ fn code_block_chrome_at(body: El, loc: &'static Location<'static>) -> El {
         .at_loc(loc)
         .style_profile(StyleProfile::Surface)
         .surface_role(SurfaceRole::Sunken)
-        .fill(tokens::MUTED)
-        .stroke(tokens::BORDER)
+        // Trough fill + stroke come from the Input/Sunken surface role
+        // as *defaults* (theme::apply_role_material), so an authored
+        // .fill()/.stroke() on the returned El wins.
         .default_radius(tokens::RADIUS_MD)
         .default_padding(Sides::all(tokens::SPACE_3))
         .width(Size::Fill(1.0))
@@ -84,8 +85,10 @@ mod tests {
         assert_eq!(block.axis, Axis::Column);
         assert_eq!(block.style_profile, StyleProfile::Surface);
         assert_eq!(block.surface_role, SurfaceRole::Sunken);
-        assert_eq!(block.fill, Some(tokens::MUTED));
-        assert_eq!(block.stroke, Some(tokens::BORDER));
+        // Trough paint comes from the Sunken role at paint time as a
+        // default, not from the recipe — an authored fill/stroke wins.
+        assert_eq!(block.fill, None);
+        assert_eq!(block.stroke, None);
         assert_eq!(block.padding, Sides::all(tokens::SPACE_3));
         assert_eq!(block.width, Size::Fill(1.0));
         assert_eq!(block.children.len(), 1);

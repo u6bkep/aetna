@@ -469,7 +469,11 @@ fn push_node(
             shader: custom.handle,
             uniforms,
         });
-    } else if fill.is_some() || stroke.is_some() || focus_ring_alpha > 0.0 {
+    } else if fill.is_some()
+        || stroke.is_some()
+        || focus_ring_alpha > 0.0
+        || n.surface_role.provides_fill()
+    {
         let mut uniforms = UniformBlock::new();
         if let Some(c) = fill {
             // `dim_fill` lerps the painted color toward `fill` as the
@@ -7455,6 +7459,61 @@ mod tests {
         assert!((combined.right - 8.0).abs() < f32::EPSILON);
         assert!((combined.top - 8.0).abs() < f32::EPSILON);
         assert!((combined.bottom - 9.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn input_role_paint_is_default_not_override() {
+        use crate::theme::Theme;
+        use crate::selection::Selection;
+        use crate::widgets::text_input::text_input;
+
+        let theme = Theme::default();
+        let quad_color = |root: &El, id_frag: &str, key: &'static str| {
+            let mut root = root.clone();
+            let mut state = UiState::new();
+            crate::layout::layout(&mut root, &mut state, Rect::new(0.0, 0.0, 400.0, 100.0));
+            draw_ops_with_theme(&root, &state, &theme)
+                .iter()
+                .find_map(|op| match op {
+                    DrawOp::Quad { id, uniforms, .. } if id.contains(id_frag) => {
+                        Some(uniforms.get(key).and_then(|v| match v {
+                            UniformValue::Color(c) => Some(*c),
+                            _ => None,
+                        }))
+                    }
+                    _ => None,
+                })
+                .expect("quad for the input el")
+        };
+        let rgb = |c: Color| (c.to_srgb_u8a()[0], c.to_srgb_u8a()[1], c.to_srgb_u8a()[2]);
+
+        // Stock input: the role provides the derived trough fill.
+        let sel = Selection::default();
+        let stock = column([text_input("field", "v", &sel)]);
+        let derived = theme.resolve(tokens::MUTED).darken(0.08);
+        assert_eq!(
+            rgb(quad_color(&stock, "field", "fill").expect("role default fill")),
+            rgb(derived),
+            "stock input trough should be the role's derived muted.darken(0.08)"
+        );
+
+        // Authored paint wins over the role material — through 0.6 the
+        // role applied with set_ and silently discarded these.
+        let authored = column([
+            text_input("field", "v", &sel)
+                .fill(tokens::PRIMARY)
+                .stroke(tokens::RING),
+        ]);
+        assert_eq!(
+            rgb(quad_color(&authored, "field", "fill").expect("authored fill")),
+            rgb(theme.resolve(tokens::PRIMARY)),
+            "authored .fill() must survive the Input role"
+        );
+        assert_eq!(
+            rgb(quad_color(&authored, "field", "stroke").expect("authored stroke")),
+            rgb(theme.resolve(tokens::RING)),
+            "authored .stroke() must survive the Input role"
+        );
     }
 
     #[test]

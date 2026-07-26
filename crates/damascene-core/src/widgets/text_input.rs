@@ -398,8 +398,9 @@ fn build_text_input(value: &str, view: Option<TextSelection>, opts: TextInputOpt
         .paint_overflow(Sides::all(tokens::RING_WIDTH))
         .hit_overflow(Sides::all(tokens::HIT_OVERFLOW))
         .cursor(Cursor::Text)
-        .fill(tokens::MUTED)
-        .stroke(tokens::BORDER)
+        // Trough fill + stroke come from the Input/Sunken surface role
+        // as *defaults* (theme::apply_role_material), so an authored
+        // .fill()/.stroke() on the returned El wins.
         .default_radius(tokens::RADIUS_MD)
         .axis(Axis::Overlay)
         .align(Align::Start)
