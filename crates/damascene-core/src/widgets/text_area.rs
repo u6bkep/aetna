@@ -262,8 +262,9 @@ fn build_text_area(
         .paint_overflow(Sides::all(tokens::RING_WIDTH))
         .hit_overflow(Sides::all(tokens::HIT_OVERFLOW))
         .cursor(Cursor::Text)
-        .fill(tokens::MUTED)
-        .stroke(tokens::BORDER)
+        // Trough fill + stroke come from the Input/Sunken surface role
+        // as *defaults* (theme::apply_role_material), so an authored
+        // .fill()/.stroke() on the returned El wins.
         .default_radius(tokens::RADIUS_MD)
         // Single child (the scroll viewport); a Column with stretch
         // alignment makes it fill the content rect cleanly.

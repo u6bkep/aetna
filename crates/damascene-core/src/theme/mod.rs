@@ -481,14 +481,21 @@ fn apply_role_material(
             default_shadow(uniforms, tokens::SHADOW_XS);
         }
         SurfaceRole::Sunken | SurfaceRole::Input => {
-            set_color(
+            // Defaults, not overrides (see Panel): the input/sunken
+            // recipes leave fill and stroke unset so the role provides
+            // the trough, and an authored `.fill()`/`.stroke()` wins —
+            // through 0.6 these were `set_`, which silently discarded
+            // authored paint on every input-role control and made an
+            // accent-ringed or transparent field unauthorable. Shadow
+            // is simply not written: absent reads as flat, and an
+            // author-declared elevation survives.
+            default_color(
                 uniforms,
                 "fill",
                 palette.resolve(tokens::MUTED).darken(0.08),
             );
-            set_color(uniforms, "stroke", tokens::INPUT.with_alpha_u8(190));
-            set_f32(uniforms, "stroke_width", 1.0);
-            set_f32(uniforms, "shadow", 0.0);
+            default_color(uniforms, "stroke", tokens::INPUT.with_alpha_u8(190));
+            default_f32(uniforms, "stroke_width", 1.0);
         }
         SurfaceRole::Popover => {
             set_color(uniforms, "stroke", tokens::INPUT);
