@@ -390,6 +390,7 @@ impl Banter {
             .width(Size::Fill(1.0))
             .height(Size::Fill(1.0))
             .align(Align::Stretch)
+            .clip()
             .scrollable()
     }
 
@@ -549,6 +550,7 @@ impl Banter {
         .width(Size::Fill(1.0))
         .height(Size::Fill(1.0))
         .align(Align::Stretch)
+        .clip()
         .scrollable()
         .pin_end()
     }

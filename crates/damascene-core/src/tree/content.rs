@@ -36,7 +36,10 @@ impl El {
         self.text_align(TextAlign::Center)
     }
 
-    /// Shorthand for `.text_align(TextAlign::End)`.
+    /// Shorthand for `.text_align(TextAlign::End)` — right-aligned in
+    /// left-to-right text (numeric table columns, trailing timestamps).
+    #[doc(alias = "right_text")]
+    #[doc(alias = "align_right")]
     pub fn end_text(self) -> Self {
         self.text_align(TextAlign::End)
     }

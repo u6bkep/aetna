@@ -98,6 +98,10 @@ pub fn sidebar_group_label(label: impl Into<String>) -> El {
 
 /// Vertical list of nav rows ([`sidebar_menu_button`]s or
 /// [`sidebar_menu_item`]s) within a group.
+///
+/// Rows are separated by a `SPACE_1` gap of their own — shadcn's
+/// `gap-1` nav list. For flush rows (a file tree, a channel list) that
+/// gap has to go: `.gap(0.0)` on the result.
 #[track_caller]
 pub fn sidebar_menu<I, E>(children: I) -> El
 where

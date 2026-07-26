@@ -146,7 +146,8 @@ pub use crate::widgets::progress::{
 pub use crate::widgets::radio::{self, RadioAction, radio_group, radio_item, radio_option_key};
 pub use crate::widgets::resize_handle::{self, ResizeDrag, ResizeWeightsDrag, resize_handle};
 pub use crate::widgets::select::{
-    self, SelectAction, select_menu, select_menu_with_density, select_option_key, select_trigger,
+    self, SelectAction, select_menu, select_menu_selected, select_menu_selected_with_density,
+    select_menu_with_density, select_option_key, select_trigger,
 };
 pub use crate::widgets::separator::{separator, vertical_separator};
 pub use crate::widgets::sheet::{

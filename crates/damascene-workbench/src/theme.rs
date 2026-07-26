@@ -221,6 +221,28 @@ pub fn palette() -> Palette {
 /// `Palette::lookup` would shadow the extra entry with `Palette::foreground`
 /// before ever consulting the map. Registering it would be dead weight
 /// that reads as if it worked.
+///
+/// # Retheming a single key
+///
+/// Registering the same extra name twice keeps the last color, so an app
+/// recolors the workbench by chaining `with_token` *after* this call — no
+/// forked constants, and every `vs::` color carrying that name re-points
+/// at paint time:
+///
+/// ```ignore
+/// use damascene_core::Color;
+/// use damascene_core::theme::palette::Palette;
+/// use damascene_workbench::theme;
+///
+/// // Blue side bar everywhere `vs::SIDE_BAR_BG` is painted — including
+/// // the shadcn `card` slot, which maps to that same token.
+/// let p: Palette = theme::register_workbench_tokens(Palette::damascene_dark())
+///     .with_token("sideBar.background", Color::rgba(20, 30, 60, 255));
+/// ```
+///
+/// The order matters only against this function; stock shadcn names
+/// (`background`, `foreground`, `border`, …) still win over extras and
+/// have to be set on the palette's own fields instead.
 pub fn register_workbench_tokens(p: Palette) -> Palette {
     p
         // Editor / text

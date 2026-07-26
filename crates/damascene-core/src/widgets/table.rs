@@ -95,6 +95,11 @@ where
 
 /// A row of cells (like `<tr>`) carrying the theme's table-row
 /// metrics; cells stretch vertically so their padded rows align.
+///
+/// The `Align::Stretch` that does the stretching also means a cell's
+/// *text* sits at the top of a row taller than one line — visible as
+/// soon as the row takes a fixed height. Add `.align(Align::Center)` to
+/// the row for vertically centered cells.
 #[track_caller]
 pub fn table_row<I, E>(cells: I) -> El
 where
@@ -114,6 +119,10 @@ where
 /// Header cell from a plain label (like `<th>`) — muted medium-weight
 /// label text on a transparent ground (shadcn header rows carry no
 /// fill; the border-b rule below the row is the header chrome).
+///
+/// Takes a string, so a header holding anything else — a sort caret, an
+/// icon, a checkbox — goes through [`table_head_el`], which applies the
+/// same chrome to an arbitrary `El`.
 #[track_caller]
 pub fn table_head(label: impl Into<String>) -> El {
     table_head_el(text(label))
