@@ -1,9 +1,17 @@
 # Damascene Vocabulary Parity — Core Proposals
 
-Maintainer-facing. This records four candidate core changes surfaced by
-building an out-of-tree opinion crate against the stock library, the
-evidence for each, and — equally important — the two that were rejected
+Maintainer-facing. This records the candidate core changes surfaced by
+building out-of-tree opinion crates against the stock library, the
+evidence for each, and — equally important — the ones that were rejected
 and why, so they don't get re-proposed on weaker grounds later.
+
+**Status 2026-07-26:** proposals 1–3 are landed on `workbench-vision`
+(merges `13e4c1a` token namespace, `a31ad0a` radius scale, `12f6e6e`
+per-side borders; review fixes `bc932d2`, `c74951f`). Building the
+first workbench-crate slice against them exposed two further theme
+knobs an agent expects (§4 shadow scale, §5 type scale) and one
+follow-up to §3 (the radius-origin flag split). Each is adjudicated by
+the same acceptance test.
 
 ## Premise
 
@@ -322,6 +330,147 @@ second consumer.
 ~0–5px, which is exactly what the multiplicative knob expresses. Still
 lands after (1) and (2), but no longer deferred indefinitely.
 
+### Follow-up (2026-07-26): the radius-origin flag split
+
+Landed with one known hole, found in adversarial review: **tab triggers
+do not square at scale 0.** `set_trigger_radius`
+(`widgets/tabs.rs:385-389`) claims `explicit_radius = true` as its
+contract to protect its per-corner segment shapes from `apply_control`
+— which also shields them from `apply_radius_scale`. Result: rounded
+segments inside a squared strip. The card-corner propagation fix
+(`c74951f`, `metrics.rs:681/:690`) claims the same flag for the same
+reason, so there are now two library claimants of an author-intent bit.
+
+Acceptance test: shadcn's tab-trigger radius derives from `--radius`
+via the calc ladder, so a web-trained agent setting radius to zero
+expects tabs to square with everything else. The current behavior is a
+damascene-internal artifact, not a corpus behavior.
+
+Design — replace the boolean with a three-state origin:
+
+```rust
+enum RadiusOrigin { ThemeDefault, LibraryShape, Author }
+```
+
+- `.radius()` → `Author`; `default_radius()` → `ThemeDefault`;
+  `set_trigger_radius` and the card-corner stamping → `LibraryShape`.
+- `apply_control` (`metrics.rs:497`) overwrites `ThemeDefault` only —
+  unchanged semantics; `LibraryShape` keeps protecting segment shapes.
+- `apply_radius_scale` (`metrics.rs:423`) scales `ThemeDefault` **and**
+  `LibraryShape` (proportionally — nonzero corners scale, so per-corner
+  edge shapes survive at nonzero scales and square at 0), skipping only
+  `Author`.
+- `table.rs:58` header promotion squares `ThemeDefault` only, as today.
+
+`explicit_radius` is a `pub` field on `El` (`node.rs:280`), so this is
+a breaking field-type change; acceptable pre-1.0, worth one deprecation
+note. The two library claimants become honest, and any future pass
+gains the distinction for free.
+
+---
+
+## 4. Theme shadow scale (recommended)
+
+### The gap
+
+`Theme` has no elevation knob. Stock `card()` bakes
+`.shadow(tokens::SHADOW_SM)` (`widgets/card.rs:85`), and the paint path
+fills role defaults — `Panel` → `SHADOW_SM`, `Raised` → `SHADOW_XS`
+(`theme/mod.rs`, deliberately `default_f32` so a widget's declared
+elevation survives; the rationale comment is correct and stays). A
+theme that wants a flat, layered look — the entire workbench premise,
+and "no shadows for chrome" is binding in `WORKBENCH_VISION.md` — has
+no way to say so. The first workbench slice shipped with every stock
+card still floating and had to silently narrow its own claims.
+
+### Acceptance test
+
+Current shadcn theming ships shadow variables in its theme format, and
+"flat theme ⇒ no shadows" is a theme-level property on the web — an
+agent theming toward a tool look expects one place to kill chrome
+shadows, not a per-widget hunt for `.shadow(0.0)` overrides. Tailwind's
+shadow scale is likewise themeable. This is the same species as the
+radius knob, found the same way: a real theme couldn't express itself.
+
+### Design
+
+```rust
+Theme::with_shadow_scale(f32)   // default 1.0; 0.0 = flat chrome
+```
+
+Mirror the radius knob's contract exactly, including the explicit-flag
+pattern (`explicit_radius`, `explicit_font_family`, `explicit_mono` are
+the precedent — shadow today has no flag at all, which is the first
+thing to fix):
+
+- `El` gains the `explicit_shadow` flag; `.shadow()` sets it; widget
+  recipes (card, dialog, popover) move to a `pub(crate)`
+  `default_shadow()` that doesn't.
+- The scale applies to non-explicit `El` shadows and to the surface-role
+  default uniforms (both are theme-owned by definition). An author's
+  explicit `.shadow()` survives at any scale — on the web, a hardcoded
+  `box-shadow` doesn't respond to theme shadow variables either.
+- Default 1.0 must be bit-identical to today, same regression-test
+  requirement as the radius knob.
+
+The workbench crate then sets `with_shadow_scale(0.0)` for chrome and
+keeps popovers/menus shadowed the way VS Code does — via explicit
+shadow in its popover recipe, or a nonzero small scale; that choice is
+the crate's, which is the point.
+
+---
+
+## 5. Theme type scale (recommended)
+
+### The gap
+
+`TextRole` sizes are hardwired: Body and Label stamp
+`tokens::TEXT_SM` (14px), Caption `TEXT_XS`, Title `TEXT_BASE` — fixed
+`TypeToken` constants (`theme/style.rs`, `theme/tokens.rs:257-296`).
+A theme cannot say "this application's UI type runs at 13px." The
+workbench crate claims dense type and cannot deliver it for any stock
+control; its own chrome fakes it with `.caption()` calls.
+
+### Acceptance test
+
+The corpus mechanism is **rem**: on the web, "make the UI 13px" is one
+declaration — root font-size — because the entire Tailwind type ladder
+is rem-based and scales together, line heights included. An agent
+expects the equivalent single knob to exist. Damascene has no rem
+concept; a theme-level scale over the role ladder is the analogue.
+
+### Design
+
+```rust
+Theme::with_type_scale(f32)   // default 1.0; workbench wants ~13/14
+```
+
+- Applies to every role-derived `TypeToken` size **and line height**
+  (rem scales both; scaling size alone wrecks vertical rhythm) at the
+  point where roles stamp type — the `apply_type_token` path.
+- Author-set explicit sizes survive, via the same explicit-flag pattern
+  (an `explicit_font_size` sibling of `explicit_mono`). The flag is set
+  by the raw `El::font_size(f32)` setter (`tree/content.rs:81`) — the
+  `text-[15px]` analogue — and **not** by `.small()` / `.xsmall()`,
+  which stamp ladder rungs (`TEXT_SM` / `TEXT_XS` via
+  `apply_type_token`): on the web `text-sm` is rem-derived and scales
+  with the root. Ladder-derived sizes scale, hand-picked px doesn't.
+  Since `.small()` and the role pass both stamp raw `f32` sizes at
+  distinct times, the practical implementation is "scale any
+  non-explicit `font_size` in the theme pass" — token identity is
+  already lost by then, and the flag is exactly the needed bit.
+- Naming choice, the one genuinely open question:
+  `with_type_scale(f32)` (multiplicative, sibling of the radius and
+  shadow knobs) vs `with_base_font_size(f32)` (names the rem idiom;
+  factor = base/16 since `TEXT_BASE` = 16px = 1rem). The rem name is
+  more corpus-faithful; the multiplicative name matches the sibling
+  knobs and avoids implying an exact rem contract damascene doesn't
+  have. Lean: `with_type_scale`, rustdoc'd with the rem analogy.
+- Metrics interaction: control heights (`control_metrics`) do NOT
+  scale with type — they are the `ComponentSize` ladder's job. Document
+  the boundary so nobody wires the two together later.
+- Default 1.0 bit-identical, regression-tested, as with the siblings.
+
 ---
 
 ## Rejected: container density / size props
@@ -390,20 +539,27 @@ lands.
 
 ## Sequencing
 
-1. **Per-side borders.** The only item with three independent in-tree
-   confessions, it deletes code (`row_rule` plumbing, `hairline()`, the
-   importer hole), the table conversion is pixel-neutral, and it is what
-   an agent hits in the first ten minutes. Bundle the importer lint arms
-   for per-side borders and per-corner radius into the same effort.
-2. **Open token namespace.** Tiny, additive, no interaction with (1).
-3. **Radius scale**, as the multiplicative knob only — its second
-   consumer (the workbench crate) has arrived, so it lands after (1)
-   and (2) rather than waiting. The `RadiusScale{sm,md,lg}` + rung-tag
-   design should not land in any form; it cannot meet its own spec.
+**Landed (2026-07-26, on `workbench-vision`):** per-side borders, open
+token namespace, radius scale — in reverse-blast-radius merge order,
+each adversarially reviewed. The `RadiusScale{sm,md,lg}` + rung-tag
+design did not land in any form and must not; it cannot meet its own
+spec.
+
+**Next, in order:**
+
+1. **Radius-origin flag split** (§3 follow-up). Smallest, closes the
+   known hole (tabs at scale 0), and the `RadiusOrigin` distinction is
+   prerequisite-shaped: the shadow knob wants the same explicit-flag
+   pattern anyway.
+2. **Shadow scale** (§4). Blocks the workbench crate's binding "no
+   shadows for chrome"; the crate currently documents the gap.
+3. **Type scale** (§5). Blocks the crate's dense-type claim; slightly
+   larger blast radius (every text-bearing widget) so it goes last,
+   with the same bit-identical-at-1.0 gate as its siblings.
 
 Container size props: dropped. If the dead `.size()` is a concern, lint
 it.
 
-All three now have a concrete driving consumer: see
-`WORKBENCH_VISION.md` (ratified 2026-07-25) for the workbench opinion
-crate that supersedes the Carbon experiment.
+Driving consumer for everything above: `WORKBENCH_VISION.md` (ratified
+2026-07-25), the workbench opinion crate that supersedes the Carbon
+experiment.
