@@ -126,6 +126,7 @@ pub struct ThemeMetrics {
     slider_size: Option<ComponentSize>,
     progress_size: Option<ComponentSize>,
     radius_scale: f32,
+    shadow_scale: f32,
 }
 
 impl ThemeMetrics {
@@ -216,6 +217,21 @@ impl ThemeMetrics {
         self
     }
 
+    /// The multiplier applied to every theme-default drop shadow.
+    /// `1.0` by default — see [`Self::with_shadow_scale`].
+    pub fn shadow_scale(&self) -> f32 {
+        self.shadow_scale
+    }
+
+    /// Scale every theme-default drop shadow in the tree — the
+    /// elevation counterpart of [`Self::with_radius_scale`]. See
+    /// [`crate::Theme::with_shadow_scale`] for what survives.
+    pub fn with_shadow_scale(mut self, scale: f32) -> Self {
+        // Same clamp rationale as the radius knob.
+        self.shadow_scale = scale.max(0.0);
+        self
+    }
+
     /// Tree-walking form, retained for the unit tests below; the
     /// production path is `Theme::apply_metrics`'s fused walk.
     #[cfg(test)]
@@ -243,6 +259,7 @@ impl ThemeMetrics {
         // (`apply_control`), and those are as much a theme default as a
         // constructor's `default_radius(...)` — so they scale too.
         apply_radius_scale(el, self.radius_scale);
+        apply_shadow_scale(el, self.shadow_scale);
         // Card corner inheritance runs on the card's FINAL corners —
         // after the scale, so an explicit (scale-exempt) card and a
         // scaled card both hand their strips exactly the curve they
@@ -402,8 +419,9 @@ impl Default for ThemeMetrics {
             slider_size: None,
             progress_size: None,
             // Identity: the metrics pass skips the rescale entirely at
-            // 1.0, so stock radii stay bit-identical.
+            // 1.0, so stock radii and shadows stay bit-identical.
             radius_scale: 1.0,
+            shadow_scale: 1.0,
         }
     }
 }
@@ -440,6 +458,21 @@ fn scale_corner(radius: f32, scale: f32) -> f32 {
     } else {
         radius * scale
     }
+}
+
+/// Rescale a node's theme-default drop shadow by the theme's shadow
+/// scale. Only [`El::shadow`] values a widget recipe baked in via
+/// `default_shadow` scale; an author's explicit `.shadow(...)` is not
+/// a theme default and survives untouched. The paint-side counterpart
+/// — the surface-role shadow *defaults* (`Panel` / `Raised` /
+/// `Popover` in `apply_role_material`) — scales by the same factor at
+/// uniform-build time, so a role default can't resurrect a shadow this
+/// pass flattened.
+fn apply_shadow_scale(el: &mut El, scale: f32) {
+    if scale == 1.0 || el.explicit_shadow || el.shadow == 0.0 {
+        return;
+    }
+    el.shadow *= scale;
 }
 
 #[derive(Clone, Copy)]
@@ -1169,6 +1202,57 @@ mod tests {
                 assert_eq!(*after, before * 0.5, "corners scale, zeros stay zero");
             }
         }
+    }
+
+    #[test]
+    fn shadow_scale_zero_flattens_stock_recipe_shadows() {
+        use crate::{card, column, text};
+
+        let mut root = column([card([text("Body")])]);
+        assert_eq!(
+            root.children[0].shadow,
+            tokens::SHADOW_SM,
+            "precondition: card bakes shadow-sm"
+        );
+        assert!(
+            !root.children[0].explicit_shadow,
+            "precondition: a recipe shadow is a theme default, not author intent"
+        );
+
+        crate::Theme::default()
+            .with_shadow_scale(0.0)
+            .apply_metrics(&mut root);
+
+        assert_eq!(root.children[0].shadow, 0.0, "card chrome goes flat");
+    }
+
+    #[test]
+    fn explicit_shadow_survives_shadow_scale_zero() {
+        use crate::{card, column, text};
+
+        let mut root = column([card([text("Body")]).shadow(tokens::SHADOW_LG)]);
+        crate::Theme::default()
+            .with_shadow_scale(0.0)
+            .apply_metrics(&mut root);
+
+        assert_eq!(
+            root.children[0].shadow,
+            tokens::SHADOW_LG,
+            "an author-declared elevation is not a theme default"
+        );
+    }
+
+    #[test]
+    fn shadow_scale_default_is_identity() {
+        use crate::{card, column, text};
+
+        let mut root = column([card([text("Body")])]);
+        crate::Theme::default().apply_metrics(&mut root);
+        assert_eq!(
+            root.children[0].shadow,
+            tokens::SHADOW_SM,
+            "no knob set: recipe shadows stay bit-identical"
+        );
     }
 
     #[test]

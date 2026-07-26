@@ -144,9 +144,21 @@ impl El {
     }
 
     /// Set the drop-shadow strength in logical pixels (0.0 = no
-    /// shadow).
+    /// shadow). An explicit shadow is the author's elevation choice
+    /// and survives [`crate::Theme::with_shadow_scale`] — like a
+    /// hardcoded `box-shadow` ignoring a theme's shadow variables.
     pub fn shadow(mut self, s: f32) -> Self {
         self.shadow = s;
+        self.explicit_shadow = true;
+        self
+    }
+
+    /// Widget-recipe shadow: sets the elevation tier without claiming
+    /// author intent, so the theme's shadow scale applies. The
+    /// `default_radius` of shadows.
+    pub(crate) fn default_shadow(mut self, s: f32) -> Self {
+        self.shadow = s;
+        self.explicit_shadow = false;
         self
     }
 

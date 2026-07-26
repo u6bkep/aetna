@@ -346,15 +346,21 @@ pub fn register_workbench_tokens(p: Palette) -> Palette {
 }
 
 /// The VS Code workbench theme: [`palette`], `Xs` controls,
-/// [`RADIUS_SCALE`], Inter + JetBrains Mono.
+/// [`RADIUS_SCALE`], flat chrome with shadowed overlays, Inter +
+/// JetBrains Mono.
 ///
 /// The four structural inversions from `docs/WORKBENCH_VISION.md`,
 /// and where each one lives:
 ///
 /// 1. **Control scale** — `with_default_component_size(Xs)` puts stock
 ///    buttons and inputs on the 28px rung instead of shadcn's 36px `Md`.
-/// 2. **Radius** — [`RADIUS_SCALE`] takes every theme-default corner,
-///    controls included, down to the 1–3.5px band.
+/// 2. **Radius + shadow** — [`RADIUS_SCALE`] takes every theme-default
+///    corner, controls included, down to the 1–3.5px band, and
+///    `with_shadow_scale(0.0)` flattens every recipe shadow: cards and
+///    buttons stop floating. Overlays are re-elevated selectively — a
+///    `Popover`-role uniform restores `SHADOW_MD` on menus, tooltips,
+///    dialogs, and palettes, matching VS Code's shadowed
+///    `widget.shadow` on its otherwise flat chrome.
 /// 3. **Layered surfaces** — the `card = sideBar.background` row of
 ///    [`palette`], plus [`crate::chrome`]'s hairline separators.
 /// 4. **Whitespace** — the crate's chrome recipes; the stock container
@@ -366,10 +372,24 @@ pub fn register_workbench_tokens(p: Palette) -> Palette {
 /// are set explicitly so the theme states its whole intent in one place
 /// rather than inheriting half of it.
 pub fn theme() -> Theme {
+    use damascene_core::shader::UniformValue;
+    use damascene_core::tree::SurfaceRole;
+
     Theme::default()
         .with_palette(palette())
         .with_default_component_size(ComponentSize::Xs)
         .with_radius_scale(RADIUS_SCALE)
+        .with_shadow_scale(0.0)
+        // Flat app, shadowed overlays: the scaled-away role default is
+        // omitted rather than zeroed, exactly so this re-elevation can
+        // land (see `Theme::with_shadow_scale`). One tier for the whole
+        // popover family — VS Code's single `widget.shadow` — rather
+        // than shadcn's md/lg split.
+        .with_role_uniform(
+            SurfaceRole::Popover,
+            "shadow",
+            UniformValue::F32(damascene_core::tokens::SHADOW_MD),
+        )
         .with_font_family(FontFamily::Inter)
         .with_mono_font_family(FontFamily::JetBrainsMono)
 }

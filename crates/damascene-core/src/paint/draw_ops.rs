@@ -7458,6 +7458,75 @@ mod tests {
     }
 
     #[test]
+    fn shadow_scale_reaches_role_defaults_and_keeps_the_restore_path() {
+        use crate::theme::Theme;
+
+        let panel = |key: &str| {
+            El::new(Kind::Group)
+                .key(key)
+                .fill(tokens::CARD)
+                .surface_role(SurfaceRole::Panel)
+                .width(Size::Fixed(40.0))
+                .height(Size::Fixed(40.0))
+        };
+        let quad_shadow = |root: &El, state: &UiState, theme: &Theme| {
+            draw_ops_with_theme(root, state, theme)
+                .iter()
+                .find_map(|op| match op {
+                    DrawOp::Quad { id, uniforms, .. } if id.contains("s") => {
+                        Some(uniforms.get("shadow").and_then(|v| match v {
+                            UniformValue::F32(f) => Some(*f),
+                            _ => None,
+                        }))
+                    }
+                    _ => None,
+                })
+                .expect("quad for the surfaced el")
+        };
+
+        // A Panel surface with no declared tier: the role default
+        // scales with the theme's shadow scale.
+        let mut root = column([panel("s")]);
+        let mut state = UiState::new();
+        crate::layout::layout(&mut root, &mut state, Rect::new(0.0, 0.0, 100.0, 100.0));
+        let half = Theme::default().with_shadow_scale(0.5);
+        assert_eq!(
+            quad_shadow(&root, &state, &half),
+            Some(tokens::SHADOW_SM * 0.5)
+        );
+
+        // At 0.0 the scaled-away default is OMITTED, not written as
+        // zero — that absence is the restore path...
+        let flat = Theme::default().with_shadow_scale(0.0);
+        assert_eq!(quad_shadow(&root, &state, &flat), None);
+
+        // ...which a role-uniform re-elevation can fill: flat app,
+        // shadowed Panel role.
+        let restored = Theme::default().with_shadow_scale(0.0).with_role_uniform(
+            SurfaceRole::Panel,
+            "shadow",
+            UniformValue::F32(tokens::SHADOW_MD),
+        );
+        assert_eq!(
+            quad_shadow(&root, &state, &restored),
+            Some(tokens::SHADOW_MD)
+        );
+
+        // End-to-end resurrect regression: a stock card's recipe
+        // shadow is flattened by the metrics pass, and the Panel role
+        // default must NOT fill it back in at paint time.
+        let mut card_root = column([crate::card([crate::text("Body")]).key("s")]);
+        flat.apply_metrics(&mut card_root);
+        let mut card_state = UiState::new();
+        crate::layout::layout(
+            &mut card_root,
+            &mut card_state,
+            Rect::new(0.0, 0.0, 100.0, 100.0),
+        );
+        assert_eq!(quad_shadow(&card_root, &card_state, &flat), None);
+    }
+
+    #[test]
     fn surface_roles_default_shadow_tiers_without_clobbering() {
         // shadcn elevation mapping: Panel (cards) defaults shadow-sm,
         // Popover (menus/tooltips) defaults shadow-md, and a widget's
