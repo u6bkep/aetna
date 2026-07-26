@@ -239,11 +239,19 @@ impl ThemeMetrics {
         if el.scrollbar_gutter {
             el.padding.right += crate::tokens::SCROLLBAR_GUTTER;
         }
-        // Last: the role recipes above stamp theme-default radii of
-        // their own (`apply_control`, `propagate_card_corner_radii`),
-        // and those are as much a theme default as a constructor's
-        // `default_radius(...)` — so they scale too.
+        // The role recipes above stamp theme-default radii of their own
+        // (`apply_control`), and those are as much a theme default as a
+        // constructor's `default_radius(...)` — so they scale too.
         apply_radius_scale(el, self.radius_scale);
+        // Card corner inheritance runs on the card's FINAL corners —
+        // after the scale, so an explicit (scale-exempt) card and a
+        // scaled card both hand their strips exactly the curve they
+        // will paint. The stamped strips are marked exempt from their
+        // own later `apply_radius_scale` visit (see the propagation
+        // body), which is what keeps them in sync in both cases.
+        if el.metrics_role == Some(MetricsRole::Card) {
+            propagate_card_corner_radii(el);
+        }
     }
 
     fn apply_to_el(&self, el: &mut El) {
@@ -294,8 +302,9 @@ impl ThemeMetrics {
                 // trailing `card_footer`). Without this, a
                 // `card_header([...]).fill(MUTED)` strip paints sharp
                 // top corners that poke past the card's rounded curve;
-                // see `propagate_card_corner_radii`.
-                propagate_card_corner_radii(el);
+                // see `propagate_card_corner_radii` (called from
+                // `apply_node` after the radius scale, so the strips
+                // inherit the card's final corners).
                 restore_headerless_card_content_padding(el);
             }
             Some(MetricsRole::CardHeader | MetricsRole::CardContent | MetricsRole::CardFooter) => {
@@ -665,6 +674,11 @@ fn propagate_card_corner_radii(card: &mut El) {
                     br: 0.0,
                     bl: 0.0,
                 };
+                // The inherited corners are the card's FINAL (already
+                // radius-scaled, or scale-exempt) curve; mark them
+                // explicit so the strip's own `apply_radius_scale`
+                // visit doesn't rescale them out of sync with the card.
+                child.explicit_radius = true;
             }
             Some(MetricsRole::CardFooter) if idx == last_idx && pad_bottom == 0.0 => {
                 child.radius = crate::tree::Corners {
@@ -673,6 +687,7 @@ fn propagate_card_corner_radii(card: &mut El) {
                     br: card_radius.br,
                     bl: card_radius.bl,
                 };
+                child.explicit_radius = true;
             }
             _ => {}
         }
@@ -1166,6 +1181,29 @@ mod tests {
             tree.children[0].radius,
             Corners::top(tokens::RADIUS_LG * 0.5)
         );
+    }
+
+    #[test]
+    fn card_header_strip_tracks_an_explicit_scale_exempt_card() {
+        use crate::tree::Corners;
+        use crate::{card, card_content, card_header, text};
+
+        // An explicit `.radius(...)` card is exempt from the scale; the
+        // header strip it stamps must stay on the card's (unscaled)
+        // curve rather than being rescaled out of sync at its own
+        // visit — the sharp-corner poke-through the propagation exists
+        // to prevent.
+        let mut tree = card([
+            card_header([text("Header")]).fill(tokens::MUTED),
+            card_content([text("Body")]),
+        ])
+        .radius(tokens::RADIUS_LG);
+        crate::Theme::default()
+            .with_radius_scale(0.5)
+            .apply_metrics(&mut tree);
+
+        assert_eq!(tree.radius, Corners::all(tokens::RADIUS_LG));
+        assert_eq!(tree.children[0].radius, Corners::top(tokens::RADIUS_LG));
     }
 
     #[test]
