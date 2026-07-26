@@ -70,26 +70,33 @@ impl Presence {
         }
     }
 
-    /// Trailing flag chips for the row.
+    /// Trailing flag glyphs for the row.
     ///
-    /// Each chip carries its own `.key(...)`: a tooltip only fires on a
+    /// Each flag carries its own `.key(...)`: a tooltip only fires on a
     /// keyed node, because hit-testing returns keyed nodes and would
-    /// otherwise skip past the chip to the enclosing row. `owner` is the
-    /// member row's key, which the chips hang a suffix off.
+    /// otherwise skip past the flag to the enclosing row. `owner` is the
+    /// member row's key, which the flags hang a suffix off.
     fn flags(self, owner: &str) -> Vec<El> {
+        let flag = |name: IconName, key: String, tip: &'static str| {
+            icon(name)
+                .icon_size(tokens::ICON_XS)
+                .color(vs::ERROR_FG)
+                .key(key)
+                .tooltip(tip)
+        };
         match self {
-            Presence::Muted => vec![
-                chip("M")
-                    .key(format!("{owner}:mic"))
-                    .tooltip("Microphone muted"),
-            ],
+            Presence::Muted => vec![flag(
+                IconName::MicOff,
+                format!("{owner}:mic"),
+                "Microphone muted",
+            )],
             Presence::Deafened => vec![
-                chip("M")
-                    .key(format!("{owner}:mic"))
-                    .tooltip("Microphone muted"),
-                chip("D")
-                    .key(format!("{owner}:deaf"))
-                    .tooltip("Deafened — output muted"),
+                flag(IconName::MicOff, format!("{owner}:mic"), "Microphone muted"),
+                flag(
+                    IconName::HeadphoneOff,
+                    format!("{owner}:deaf"),
+                    "Deafened — output muted",
+                ),
             ],
             _ => Vec::new(),
         }
@@ -420,14 +427,11 @@ impl Banter {
             ])
             .gap(0.0)
             .width(Size::Fill(1.0)),
-            // No mic / headphone glyphs in the stock icon set — see the
-            // note at the bottom of this file. `Activity` (a waveform)
-            // and `Bell` stand in.
-            icon_button(IconName::Activity)
+            icon_button(IconName::Mic)
                 .key("self:mic")
                 .ghost()
                 .tooltip("Mute microphone — F1"),
-            icon_button(IconName::Bell)
+            icon_button(IconName::Headphones)
                 .key("self:deafen")
                 .ghost()
                 .tooltip("Deafen — F2"),

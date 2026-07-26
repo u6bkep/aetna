@@ -35,9 +35,10 @@
 //!   hint are absent.
 //! - **Numeric unit suffix.** `NumericInputOpts` has no `.suffix("px")`,
 //!   so the unit rides outside the field.
-//! - **Icon vocabulary.** 26 built-ins, none of which is a code
-//!   bracket, keyboard, globe, terminal or contrast disc; the rail uses
-//!   the nearest stand-ins.
+//! - **Icon vocabulary — CLOSED.** The rail once ran on the nearest
+//!   stand-ins because none of the 26 built-ins was a code bracket,
+//!   keyboard, globe, terminal or contrast disc. All five are in the
+//!   57-name vocabulary now, and the rail draws them.
 //! - **Text ramp.** The palette carries two text tones (`foreground`,
 //!   `descriptionForeground`); the reference uses four.
 //!
@@ -110,15 +111,15 @@ const RAIL_ITEM_HEIGHT: f32 = 30.0;
 const PANEL_RADIUS: f32 = 6.0;
 const SWATCH: f32 = 18.0;
 
-/// Categories, paired with the nearest built-in icon. None of the six
-/// glyphs in the reference exists in the icon set — see the gap list.
+/// Categories, paired with their built-in icon — all six glyphs the
+/// reference uses are in the vocabulary by name.
 const CATEGORIES: &[(&str, &str)] = &[
     ("General", "settings"),
-    ("Appearance", "info"),
-    ("Editor", "file-text"),
-    ("Keyboard", "layout-dashboard"),
-    ("Network", "activity"),
-    ("Advanced", "command"),
+    ("Appearance", "contrast"),
+    ("Editor", "code"),
+    ("Keyboard", "keyboard"),
+    ("Network", "globe"),
+    ("Advanced", "terminal"),
 ];
 
 const THEME_KEY: &str = "color-theme";

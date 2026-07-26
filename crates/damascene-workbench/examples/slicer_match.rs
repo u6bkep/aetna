@@ -144,11 +144,14 @@ fn palette() -> Palette {
 // ---------------------------------------------------------------------
 // App glyphs.
 //
-// The built-in vocabulary (`all_icon_names()`, 27 entries) is
-// developer-tool shaped — folder, git-branch, settings — and has nothing
-// for a transform gizmo, a print head or a filament spool. These go
-// through the documented `SvgIcon::parse_current_color` path, so they
-// tint from `text_color` exactly like the built-ins.
+// The built-in vocabulary (`all_icon_names()`, 57 entries) now covers the
+// transform gizmos — `move`, `rotate-cw`, `scaling`, `flip-horizontal`,
+// `ruler`, `camera` — so the tool rail draws built-ins. What remains here
+// is genuinely product-specific: the brand mark, undo/redo, a print head,
+// a slice action, a filament spool, a support lattice, the mesh and axis
+// placeholders. These go through the documented
+// `SvgIcon::parse_current_color` path, so they tint from `text_color`
+// exactly like the built-ins.
 // ---------------------------------------------------------------------
 
 const GLYPH_HEAD: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">"##;
@@ -178,30 +181,6 @@ glyph!(
 glyph!(
     SLICE,
     r##"<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>"##
-);
-glyph!(
-    MOVE,
-    r##"<path d="M12 3v18M3 12h18"/><path d="M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5"/><path d="M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/>"##
-);
-glyph!(
-    ROTATE,
-    r##"<path d="M20.5 12a8.5 8.5 0 1 1-2.9-6.4"/><path d="M20.5 3.5v5h-5"/>"##
-);
-glyph!(
-    SCALE,
-    r##"<path d="M4 13v7h7"/><path d="M20 11V4h-7"/><path d="M4 20 20 4"/>"##
-);
-glyph!(
-    MIRROR,
-    r##"<path d="M12 2.5v19"/><path d="M9 6.5 4.5 12 9 17.5z"/><path d="m15 6.5 4.5 5.5L15 17.5z"/>"##
-);
-glyph!(
-    RULER,
-    r##"<path d="M3.5 15.5 15.5 3.5l5 5-12 12z"/><path d="m7 12 2 2M10 9l2 2M13 6l2 2"/>"##
-);
-glyph!(
-    CAMERA,
-    r##"<path d="M3 7.5h4L9 5h6l2 2.5h4v12H3z"/><circle cx="12" cy="13" r="3.5"/>"##
 );
 glyph!(
     SUN,
@@ -497,9 +476,11 @@ impl Slicer {
     // -----------------------------------------------------------------
 
     fn tool_rail(&self) -> El {
-        let tool = |id: &'static str, g: &'static LazyLock<SvgIcon>, label: &str| {
+        // `IconSource` rather than one concrete type, because the gizmos
+        // are built-ins and the appearance toggle is an app glyph.
+        let tool = |id: &'static str, g: IconSource, label: &str| {
             let active = self.tool == id;
-            let b = icon_button(&**g)
+            let b = icon_button(g)
                 .key(format!("{TOOL_KEY}:{id}"))
                 .tooltip(label.to_string())
                 .ghost()
@@ -524,14 +505,18 @@ impl Slicer {
         };
 
         column([
-            tool("move", &MOVE, "Move"),
-            tool("rotate", &ROTATE, "Rotate"),
-            tool("scale", &SCALE, "Scale"),
-            tool("mirror", &MIRROR, "Mirror"),
-            tool("measure", &RULER, "Measure"),
-            tool("camera", &CAMERA, "Camera view"),
+            tool("move", IconName::Move.into_icon_source(), "Move"),
+            tool("rotate", IconName::RotateCw.into_icon_source(), "Rotate"),
+            tool("scale", IconName::Scaling.into_icon_source(), "Scale"),
+            tool(
+                "mirror",
+                IconName::FlipHorizontal.into_icon_source(),
+                "Mirror",
+            ),
+            tool("measure", IconName::Ruler.into_icon_source(), "Measure"),
+            tool("camera", IconName::Camera.into_icon_source(), "Camera view"),
             spacer(),
-            tool("theme", &SUN, "Appearance"),
+            tool("theme", (&*SUN).into_icon_source(), "Appearance"),
         ])
         .gap(tokens::SPACE_0)
         .padding(Sides::y(tokens::SPACE_1))
