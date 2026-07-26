@@ -26,13 +26,18 @@
 //!
 //! | signal | shadcn | workbench |
 //! |---|---|---|
-//! | control scale | 36px `Md`, 14px type | 28px `Xs`, 12px type |
+//! | control scale | 36px `Md` controls | 28px `Xs` controls |
 //! | radius | 7–12px | ~2px ([`theme::RADIUS_SCALE`]) |
 //! | surfaces | one bg, outlined cards floating on it | layered fills, 1px separators |
 //! | whitespace | spent to look calm | spent on information |
 //!
-//! All four are values-and-recipes changes, which is why an opinion
-//! crate is the right mechanism rather than a core change.
+//! Two inversions are **not yet delivered** because core `Theme` has no
+//! knob for them (proposed in `docs/VOCABULARY_PARITY.md` §4–5): stock
+//! control labels still render at 14px (`TextRole` sizes are fixed in
+//! core; only this crate's own chrome drops to 12px captions), and
+//! stock `card()` / surface-role paint still casts `SHADOW_SM` /
+//! `SHADOW_XS` shadows. Until those land, the theme inverts scale,
+//! radius, and surfaces — not type size or elevation.
 //!
 //! # Why VS Code specifically
 //!
