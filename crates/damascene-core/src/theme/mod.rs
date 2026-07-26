@@ -210,18 +210,24 @@ impl Theme {
     ///
     /// The metrics pass applies this to every corner a *theme* chose:
     /// the `default_radius(...)` a widget constructor baked in, and the
-    /// radius the pass itself stamps onto buttons, inputs, and tab
-    /// triggers. Three things survive it:
+    /// radius the pass itself stamps onto buttons and inputs. Three
+    /// things survive it:
     ///
     /// - An explicit `.radius(...)`. The author named that value, so it
-    ///   is not a theme default.
+    ///   is not a theme default. This exemption also covers corners the
+    ///   library stamps as explicit: `tabs_list` segment triggers
+    ///   (`widgets/tabs.rs` marks their edge radii explicit) and switch
+    ///   tracks (explicit `RADIUS_PILL`) do not scale. Card
+    ///   header/footer strips inherit the *card's* final corners inside
+    ///   the pass, so they track the card whether or not it scaled.
     /// - Corners already at `0.0`, so per-corner shapes
     ///   ([`Corners::top`](crate::tree::Corners::top) and friends) keep
     ///   their silhouette instead of going uniform.
     /// - Corners at or above [`tokens::RADIUS_PILL`], because on the web
-    ///   `rounded-full` is independent of `--radius` — pills, badges,
-    ///   avatars, and switch tracks stay round at any scale, including
-    ///   `0.0`.
+    ///   `rounded-full` is independent of `--radius` — pills and avatars
+    ///   stay round at any scale, including `0.0`. (Badges use a small
+    ///   fixed radius, well below the pill threshold, and scale like any
+    ///   other control.)
     pub fn with_radius_scale(mut self, scale: f32) -> Self {
         self.metrics = self.metrics.with_radius_scale(scale);
         self
