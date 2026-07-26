@@ -27,12 +27,16 @@
 //!
 //! Recorded here rather than faked, because the gap list is the point:
 //!
-//! 1. **Icon vocabulary.** [`IconName`] has 27 members and none of them
-//!    are the ones a voice client is *made* of: no `Mic` / `MicOff`,
-//!    `Headphones` / `HeadphonesOff`, `Volume2`, `MessageSquare`,
-//!    `ScreenShare`, `Lock`, `Send`, `Paperclip`, `Smile`, `Wifi`,
-//!    `Minimize`/`Maximize`. Every glyph below marked `// stand-in` is a
-//!    stock name pressed into a role it does not draw.
+//! 1. **Icon vocabulary — CLOSED.** This was the finding that drove the
+//!    expansion of [`IconName`] from 26 to 57 members: the vocabulary held
+//!    none of the glyphs a voice client is *made* of, and every one below
+//!    was a stock name pressed into a role it did not draw. `Mic`,
+//!    `MicOff`, `Headphones`, `HeadphoneOff`, `Volume2`, `VolumeX`,
+//!    `MessageSquare`, `ScreenShare`, `Lock`, `Send`, `Paperclip`,
+//!    `Smile`, `Wifi` and `LogOut` are all built in now, and this file
+//!    draws them. What is still missing is only the window caption set
+//!    (`Minimize` / `Maximize`), noted at its one call site in the title
+//!    strip.
 //! 2. **Syntax colors.** [`vs`] is the *workbench* half of a VS Code
 //!    theme; the `editor.tokenColorCustomizations` half (comment green,
 //!    keyword blue, control-flow magenta, number sage) has no tokens, so
@@ -247,18 +251,22 @@ impl Marker {
         };
         match self {
             Marker::None => None,
-            // stand-in: no `IconName::Volume2` — Activity is the waveform.
             Marker::Speaking => marked(
-                IconName::Activity,
+                IconName::Volume2,
                 vs::EDITOR_GUTTER_ADDED_BG,
                 "Transmitting",
             ),
-            // stand-in: no `IconName::ScreenShare`.
-            Marker::Sharing => marked(IconName::Upload, vs::EDITOR_GUTTER_ADDED_BG, "Sharing screen"),
-            // stand-in: no `IconName::MicOff`.
-            Marker::Muted => marked(IconName::Activity, vs::ERROR_FG, "Microphone muted"),
-            // stand-in: no `IconName::HeadphonesOff`.
-            Marker::Deafened => marked(IconName::Bell, vs::ERROR_FG, "Deafened — output muted"),
+            Marker::Sharing => marked(
+                IconName::ScreenShare,
+                vs::EDITOR_GUTTER_ADDED_BG,
+                "Sharing screen",
+            ),
+            Marker::Muted => marked(IconName::MicOff, vs::ERROR_FG, "Microphone muted"),
+            Marker::Deafened => marked(
+                IconName::HeadphoneOff,
+                vs::ERROR_FG,
+                "Deafened — output muted",
+            ),
             Marker::You => Some(tag("you", vs::DESCRIPTION_FG)),
         }
     }
@@ -518,13 +526,11 @@ impl Banter {
 
     fn activity_rail(&self) -> El {
         column([
-            // stand-in: no `IconName::Volume2`.
-            self.rail_item("rail:voice", IconName::Activity, true, "Voice"),
+            self.rail_item("rail:voice", IconName::Volume2, true, "Voice"),
             // The unread badge overlaps the icon's lower-left, which is
             // what `stack` is for.
             stack([
-                // stand-in: no `IconName::MessageSquare`.
-                self.rail_item("rail:chat", IconName::FileText, false, "Messages"),
+                self.rail_item("rail:chat", IconName::MessageSquare, false, "Messages"),
                 row([chip("3").fill(vs::BUTTON_BG).color(vs::BUTTON_FG)])
                     .width(Size::Fill(1.0))
                     .height(Size::Fill(1.0))
@@ -543,8 +549,7 @@ impl Banter {
             self.rail_server("HX", false),
             self.rail_item("rail:add", IconName::Plus, false, "Add a server"),
             spacer(),
-            // stand-in: no `IconName::Headphones`.
-            self.rail_item("rail:audio", IconName::Activity, false, "Audio devices"),
+            self.rail_item("rail:audio", IconName::Headphones, false, "Audio devices"),
             self.rail_item("rail:prefs", IconName::Settings, false, "Preferences"),
         ])
         .gap(0.0)
@@ -620,9 +625,9 @@ impl Banter {
             icon(chevron)
                 .icon_size(tokens::ICON_XS)
                 .color(vs::DESCRIPTION_FG),
-            // stand-in: no `IconName::Volume2` — every channel in this
-            // genre is a voice channel and wears a speaker glyph.
-            icon(IconName::Activity)
+            // Every channel in this genre is a voice channel and wears a
+            // speaker glyph.
+            icon(IconName::Volume2)
                 .icon_size(tokens::ICON_XS)
                 .color(if active {
                     vs::TAB_ACTIVE_FG
@@ -645,9 +650,8 @@ impl Banter {
                 }),
         ];
         if channel.private {
-            // stand-in: no `IconName::Lock`.
             children.push(
-                icon(IconName::Info)
+                icon(IconName::Lock)
                     .icon_size(tokens::ICON_XS)
                     .color(vs::DESCRIPTION_FG),
             );
@@ -764,16 +768,14 @@ impl Banter {
             ])
             .gap(2.0)
             .width(Size::Fill(1.0)),
-            // stand-in: no `IconName::Mic`.
             // `.secondary()`, not `.ghost()`: the comp shows this one
             // control carrying a resting fill, because it is the toggle
             // whose state the user is always tracking.
-            icon_button(IconName::Activity)
+            icon_button(IconName::Mic)
                 .key("self:mic")
                 .secondary()
                 .tooltip("Mute microphone — F1"),
-            // stand-in: no `IconName::Headphones`.
-            icon_button(IconName::Bell)
+            icon_button(IconName::Headphones)
                 .key("self:deafen")
                 .ghost()
                 .tooltip("Deafen — F2"),
@@ -824,8 +826,7 @@ impl Banter {
 
     fn channel_header(&self) -> El {
         row([
-            // stand-in: no `IconName::Volume2`.
-            icon(IconName::Activity)
+            icon(IconName::Volume2)
                 .icon_size(tokens::ICON_SM)
                 .color(vs::DESCRIPTION_FG),
             text("Build Room")
@@ -1073,10 +1074,9 @@ impl Banter {
                      legend still clips at 3 lanes.",
                 )],
             ),
-            // stand-in: no `IconName::LogOut` for a channel move.
             self.notice(
                 "09:14",
-                IconName::Upload,
+                IconName::LogOut,
                 vs::DESCRIPTION_FG,
                 "dan.okafor",
                 "moved to Lobby.",
@@ -1113,10 +1113,9 @@ impl Banter {
                      minutes, don't file anything.",
                 )],
             ),
-            // stand-in: no `IconName::HeadphonesOff`.
             self.notice(
                 "09:31",
-                IconName::Bell,
+                IconName::HeadphoneOff,
                 vs::ERROR_FG,
                 "aiko.tanaka",
                 "deafened themselves.",
@@ -1168,8 +1167,7 @@ impl Banter {
     /// Composer well plus the shortcut hint strip under it.
     fn composer(&self) -> El {
         let well = row([
-            // stand-in: no `IconName::Paperclip`.
-            icon_button(IconName::Upload)
+            icon_button(IconName::Paperclip)
                 .key("composer:attach")
                 .ghost()
                 .tooltip("Attach a file"),
@@ -1183,13 +1181,11 @@ impl Banter {
             .fill(COMPOSER_BG)
             .stroke(COMPOSER_BG)
             .width(Size::Fill(1.0)),
-            // stand-in: no `IconName::Smile`.
-            icon_button(IconName::Info)
+            icon_button(IconName::Smile)
                 .key("composer:emoji")
                 .ghost()
                 .tooltip("Emoji"),
-            // stand-in: no `IconName::Send`.
-            button_with_icon(IconName::Upload, "Send")
+            button_with_icon(IconName::Send, "Send")
                 .key("composer:send")
                 .primary(),
         ])
@@ -1225,8 +1221,7 @@ impl Banter {
             ),
             hint(vec![kbd("/")], "commands"),
             spacer(),
-            // stand-in: no `IconName::Mic`.
-            icon(IconName::Activity)
+            icon(IconName::Mic)
                 .icon_size(tokens::ICON_XS)
                 .color(vs::EDITOR_GUTTER_ADDED_BG),
             text("Push-to-talk held ·")
@@ -1275,8 +1270,7 @@ impl Banter {
         status_bar(
             [
                 row([
-                    // stand-in: no `IconName::Wifi`.
-                    icon(IconName::BarChart)
+                    icon(IconName::Wifi)
                         .icon_size(tokens::ICON_XS)
                         .color(vs::EDITOR_GUTTER_ADDED_BG),
                     dim("Connected — voice.example.com · 48 ms"),
@@ -1316,8 +1310,7 @@ impl Banter {
                 mono_dim("Opus 96 kb/s · 48 kHz"),
                 sep(),
                 row([
-                    // stand-in: no `IconName::Mic`.
-                    icon(IconName::Activity)
+                    icon(IconName::Mic)
                         .icon_size(tokens::ICON_XS)
                         .color(vs::DESCRIPTION_FG),
                     mono_dim("Scarlett 2i2"),
@@ -1325,8 +1318,7 @@ impl Banter {
                 .gap(tokens::SPACE_1)
                 .align(Align::Center),
                 row([
-                    // stand-in: no `IconName::Headphones`.
-                    icon(IconName::Users)
+                    icon(IconName::Headphones)
                         .icon_size(tokens::ICON_XS)
                         .color(vs::DESCRIPTION_FG),
                     mono_dim("HD 6XX"),

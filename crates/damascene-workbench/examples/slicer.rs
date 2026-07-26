@@ -18,58 +18,8 @@
 //!
 //! Run: `cargo run -p damascene-workbench --example slicer`
 
-use std::sync::LazyLock;
-
 use damascene_core::prelude::*;
 use damascene_workbench::{chrome::*, theme, tokens as vs};
-
-// ---------------------------------------------------------------------
-// Tool-rail glyphs.
-//
-// The built-in icon vocabulary (`all_icon_names()`) is developer-tool
-// shaped — folder, git-branch, settings — and has nothing for a
-// transform gizmo. These are app-supplied SVGs through the documented
-// `SvgIcon::parse_current_color` path, so they tint from `text_color`
-// exactly like the built-ins.
-// ---------------------------------------------------------------------
-
-/// Shared attributes for the rail glyphs: 24×24, unfilled, round joins —
-/// the built-in lucide geometry, so app icons sit at the same weight.
-const GLYPH_HEAD: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"##;
-
-macro_rules! glyph {
-    ($name:ident, $body:expr) => {
-        static $name: LazyLock<SvgIcon> = LazyLock::new(|| {
-            SvgIcon::parse_current_color(&format!("{GLYPH_HEAD}{}</svg>", $body))
-                .expect("built-in rail glyph parses")
-        });
-    };
-}
-
-glyph!(
-    MOVE_GLYPH,
-    r##"<path d="M12 3v18M3 12h18"/><path d="M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5"/><path d="M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/>"##
-);
-glyph!(
-    ROTATE_GLYPH,
-    r##"<path d="M20.5 12a8.5 8.5 0 1 1-2.9-6.4"/><path d="M20.5 3.5v5h-5"/>"##
-);
-glyph!(
-    SCALE_GLYPH,
-    r##"<path d="M4 13v7h7"/><path d="M20 11V4h-7"/><path d="M4 20L20 4"/><path d="M4 16.5V20h3.5"/>"##
-);
-glyph!(
-    MIRROR_GLYPH,
-    r##"<path d="M12 2.5v19"/><path d="M9 6.5L4.5 12 9 17.5z"/><path d="M15 6.5l4.5 5.5-4.5 5.5z"/>"##
-);
-glyph!(
-    MEASURE_GLYPH,
-    r##"<path d="M3.5 15.5L15.5 3.5l5 5-12 12z"/><path d="M7 12l2 2M10 9l2 2M13 6l2 2"/>"##
-);
-glyph!(
-    CAMERA_GLYPH,
-    r##"<path d="M3 7.5h4L9 5h6l2 2.5h4v12H3z"/><circle cx="12" cy="13" r="3.5"/>"##
-);
 
 /// The 3D canvas. Darker than every workbench surface on purpose: a
 /// viewport is not chrome, and the Dark Modern ramp bottoms out at
@@ -149,10 +99,14 @@ impl Slicer {
     /// VS Code's activity bar, re-cast as a transform-gizmo rail. The
     /// active tool takes `activityBar.foreground` plus a `focusBorder`
     /// left rule; the rest sit at `activityBar.inactiveForeground`.
+    ///
+    /// Every gizmo glyph is a built-in: the vocabulary carries `move`,
+    /// `rotate-cw`, `scaling`, `flip-horizontal`, `ruler` and `camera`,
+    /// so the rail needs no app-supplied SVG at all.
     fn tool_rail(&self) -> El {
-        let tool = |id: &'static str, glyph: &LazyLock<SvgIcon>, label: &str| {
+        let tool = |id: &'static str, glyph: IconName, label: &str| {
             let active = self.active_tool == id;
-            let b = icon_button(&**glyph)
+            let b = icon_button(glyph)
                 .key(format!("tool:{id}"))
                 .tooltip(label.to_string())
                 .ghost()
@@ -171,13 +125,13 @@ impl Slicer {
         };
 
         column([
-            tool("move", &MOVE_GLYPH, "Move"),
-            tool("rotate", &ROTATE_GLYPH, "Rotate"),
-            tool("scale", &SCALE_GLYPH, "Scale"),
-            tool("mirror", &MIRROR_GLYPH, "Mirror"),
+            tool("move", IconName::Move, "Move"),
+            tool("rotate", IconName::RotateCw, "Rotate"),
+            tool("scale", IconName::Scaling, "Scale"),
+            tool("mirror", IconName::FlipHorizontal, "Mirror"),
             hairline(),
-            tool("measure", &MEASURE_GLYPH, "Measure"),
-            tool("camera", &CAMERA_GLYPH, "Camera"),
+            tool("measure", IconName::Ruler, "Measure"),
+            tool("camera", IconName::Camera, "Camera"),
         ])
         .gap(tokens::SPACE_0)
         .padding(Sides::y(tokens::SPACE_1))
