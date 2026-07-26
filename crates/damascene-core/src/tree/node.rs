@@ -311,6 +311,13 @@ pub struct El {
     /// shadows scale with the theme while author shadows survive, the
     /// same split `radius_origin` draws for corners.
     pub explicit_shadow: bool,
+    /// Author took manual control of this node's type metrics — set by
+    /// the raw `.font_size(...)` / `.line_height(...)` / `.icon_size(...)`
+    /// setters; the theme's type scale leaves the node alone. Role- and
+    /// rung-derived sizes (`.caption()`, `.small()`, …) do NOT set this
+    /// and scale with the theme, the same line the web draws between
+    /// rem-derived `text-sm` and a hand-picked `text-[15px]`.
+    pub explicit_font_size: bool,
     /// Author explicitly set [`Self::font_family`]; theme application
     /// leaves it alone.
     pub explicit_font_family: bool,

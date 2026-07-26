@@ -54,6 +54,7 @@ impl Default for El {
             explicit_gap: false,
             radius_origin: RadiusOrigin::ThemeDefault,
             explicit_shadow: false,
+            explicit_font_size: false,
             explicit_font_family: false,
             explicit_mono_font_family: false,
             explicit_mono: false,

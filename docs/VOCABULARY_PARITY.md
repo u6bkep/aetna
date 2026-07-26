@@ -444,7 +444,7 @@ resurrect a flattened card shadow" case).
 
 ---
 
-## 5. Theme type scale (recommended)
+## 5. Theme type scale (landed 2026-07-26)
 
 ### The gap
 
@@ -494,6 +494,20 @@ Theme::with_type_scale(f32)   // default 1.0; workbench wants ~13/14
   scale with type — they are the `ComponentSize` ladder's job. Document
   the boundary so nobody wires the two together later.
 - Default 1.0 bit-identical, regression-tested, as with the siblings.
+
+**As landed:** `with_type_scale` chose the multiplicative name; the
+flag is `explicit_font_size`, claimed by `.font_size()`,
+`.line_height()`, and `.icon_size()` (icons ride the same `font_size`
+field, and rem-sized icons scale on the web too — so themed icon sizes
+scale, author `icon_size()` survives). One recipe cleanup: `code_block`
+called the raw `.font_size(TEXT_SM.size)` setter redundantly (it *is*
+the El default), which would have pinned code blocks against the scale
+— the call is deleted, not converted. The scale clamps to a 0.05 floor
+rather than 0: a zero type scale erases all text, which is never the
+intent the way a zero radius or shadow is. Workbench sets `13/14`.
+Regression tests: `type_scale_scales_roles_rungs_and_line_heights`,
+`explicit_type_metrics_survive_type_scale`,
+`type_scale_default_is_identity` (`metrics.rs`).
 
 ---
 
@@ -570,14 +584,10 @@ design did not land in any form and must not; it cannot meet its own
 spec.
 
 **Also landed (2026-07-26):** the radius-origin flag split (§3
-follow-up) — tabs now square at scale 0 — and the shadow scale (§4);
-the workbench theme now ships flat chrome with shadowed overlays.
-
-**Next:**
-
-1. **Type scale** (§5). The last unlanded knob; blocks the crate's
-   dense-type claim. Slightly larger blast radius (every text-bearing
-   widget), same bit-identical-at-1.0 gate as its siblings.
+follow-up) — tabs now square at scale 0 — the shadow scale (§4), and
+the type scale (§5). Every proposal in this document is now either
+landed or rejected; the workbench theme delivers all four structural
+inversions through core knobs.
 
 Container size props: dropped. If the dead `.size()` is a concern, lint
 it.

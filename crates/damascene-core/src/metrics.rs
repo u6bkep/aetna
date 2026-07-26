@@ -127,6 +127,7 @@ pub struct ThemeMetrics {
     progress_size: Option<ComponentSize>,
     radius_scale: f32,
     shadow_scale: f32,
+    type_scale: f32,
 }
 
 impl ThemeMetrics {
@@ -232,6 +233,23 @@ impl ThemeMetrics {
         self
     }
 
+    /// The multiplier applied to every role- and rung-derived type
+    /// size. `1.0` by default — see [`Self::with_type_scale`].
+    pub fn type_scale(&self) -> f32 {
+        self.type_scale
+    }
+
+    /// Scale every role- and rung-derived font size and line height in
+    /// the tree — the rem analogue. See
+    /// [`crate::Theme::with_type_scale`] for what survives.
+    pub fn with_type_scale(mut self, scale: f32) -> Self {
+        // A zero or negative type scale would erase all text; clamp to
+        // a floor that keeps glyphs renderable instead of silently
+        // blanking the app.
+        self.type_scale = scale.max(0.05);
+        self
+    }
+
     /// Tree-walking form, retained for the unit tests below; the
     /// production path is `Theme::apply_metrics`'s fused walk.
     #[cfg(test)]
@@ -260,6 +278,7 @@ impl ThemeMetrics {
         // constructor's `default_radius(...)` — so they scale too.
         apply_radius_scale(el, self.radius_scale);
         apply_shadow_scale(el, self.shadow_scale);
+        apply_type_scale(el, self.type_scale);
         // Card corner inheritance runs on the card's FINAL corners —
         // after the scale, so an explicit (scale-exempt) card and a
         // scaled card both hand their strips exactly the curve they
@@ -419,9 +438,10 @@ impl Default for ThemeMetrics {
             slider_size: None,
             progress_size: None,
             // Identity: the metrics pass skips the rescale entirely at
-            // 1.0, so stock radii and shadows stay bit-identical.
+            // 1.0, so stock radii, shadows, and type stay bit-identical.
             radius_scale: 1.0,
             shadow_scale: 1.0,
+            type_scale: 1.0,
         }
     }
 }
@@ -473,6 +493,23 @@ fn apply_shadow_scale(el: &mut El, scale: f32) {
         return;
     }
     el.shadow *= scale;
+}
+
+/// Rescale a node's role- and rung-derived type metrics by the theme's
+/// type scale — the rem analogue: on the web the whole ladder scales
+/// with the root font size while hand-picked px values don't. Roles
+/// and rungs stamp raw `f32`s at construction, so by pass time the
+/// token identity is gone; `explicit_font_size` is exactly the
+/// remaining bit that distinguishes a themed size from an author's.
+/// Line height scales with size — scaling size alone would wreck
+/// vertical rhythm. Control heights do NOT scale with type; they are
+/// the [`ComponentSize`] ladder's job.
+fn apply_type_scale(el: &mut El, scale: f32) {
+    if scale == 1.0 || el.explicit_font_size {
+        return;
+    }
+    el.font_size *= scale;
+    el.line_height *= scale;
 }
 
 #[derive(Clone, Copy)]
@@ -1253,6 +1290,70 @@ mod tests {
             tokens::SHADOW_SM,
             "no knob set: recipe shadows stay bit-identical"
         );
+    }
+
+    #[test]
+    fn type_scale_scales_roles_rungs_and_line_heights() {
+        use crate::{column, text};
+
+        let scale = 13.0 / 14.0;
+        let mut root = column([
+            text("body"),
+            text("caption").caption(),
+            text("title").title(),
+            text("small").small(),
+        ]);
+        let before: Vec<_> = root
+            .children
+            .iter()
+            .map(|t| (t.font_size, t.line_height))
+            .collect();
+
+        crate::Theme::default()
+            .with_type_scale(scale)
+            .apply_metrics(&mut root);
+
+        for (child, (size, lh)) in root.children.iter().zip(&before) {
+            assert_eq!(child.font_size, size * scale, "sizes scale");
+            assert_eq!(child.line_height, lh * scale, "line heights track");
+        }
+        assert_eq!(
+            root.children[0].font_size,
+            tokens::TEXT_SM.size * scale,
+            "14px body lands at 13px with the workbench ratio"
+        );
+    }
+
+    #[test]
+    fn explicit_type_metrics_survive_type_scale() {
+        use crate::{column, text};
+
+        let mut root = column([
+            text("picked").font_size(15.0),
+            text("leaded").line_height(28.0),
+        ]);
+        crate::Theme::default()
+            .with_type_scale(0.5)
+            .apply_metrics(&mut root);
+
+        assert_eq!(root.children[0].font_size, 15.0);
+        assert_eq!(root.children[1].line_height, 28.0);
+        assert_eq!(
+            root.children[1].font_size,
+            tokens::TEXT_SM.size,
+            "claiming line height pins the node's type metrics wholesale"
+        );
+    }
+
+    #[test]
+    fn type_scale_default_is_identity() {
+        use crate::{column, text};
+
+        let mut root = column([text("body"), text("title").title()]);
+        crate::Theme::default().apply_metrics(&mut root);
+        assert_eq!(root.children[0].font_size, tokens::TEXT_SM.size);
+        assert_eq!(root.children[1].font_size, tokens::TEXT_BASE.size);
+        assert_eq!(root.children[1].line_height, tokens::TEXT_BASE.line_height);
     }
 
     #[test]
