@@ -55,7 +55,7 @@ where
     for row in &mut header.children {
         if row.metrics_role == Some(MetricsRole::TableRow) {
             row.metrics_role = Some(MetricsRole::TableHeader);
-            if !row.explicit_radius {
+            if row.radius_origin == RadiusOrigin::ThemeDefault {
                 row.radius = crate::tree::Corners::ZERO;
             }
         }

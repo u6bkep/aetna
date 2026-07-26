@@ -346,26 +346,37 @@ via the calc ladder, so a web-trained agent setting radius to zero
 expects tabs to square with everything else. The current behavior is a
 damascene-internal artifact, not a corpus behavior.
 
-Design — replace the boolean with a three-state origin:
+Design — replace the boolean with a three-state origin (**landed
+2026-07-26**, as implemented; one variant differs from the first
+sketch, see below):
 
 ```rust
-enum RadiusOrigin { ThemeDefault, LibraryShape, Author }
+enum RadiusOrigin { ThemeDefault, LibraryShape, Fixed }
 ```
 
-- `.radius()` → `Author`; `default_radius()` → `ThemeDefault`;
-  `set_trigger_radius` and the card-corner stamping → `LibraryShape`.
-- `apply_control` (`metrics.rs:497`) overwrites `ThemeDefault` only —
-  unchanged semantics; `LibraryShape` keeps protecting segment shapes.
-- `apply_radius_scale` (`metrics.rs:423`) scales `ThemeDefault` **and**
-  `LibraryShape` (proportionally — nonzero corners scale, so per-corner
-  edge shapes survive at nonzero scales and square at 0), skipping only
-  `Author`.
-- `table.rs:58` header promotion squares `ThemeDefault` only, as today.
+The axis is the *contract*, not the author — what the pass may do to
+the value, not who wrote it:
 
-`explicit_radius` is a `pub` field on `El` (`node.rs:280`), so this is
-a breaking field-type change; acceptable pre-1.0, worth one deprecation
-note. The two library claimants become honest, and any future pass
-gains the distinction for free.
+- `ThemeDefault` — `default_radius()` / untouched. `apply_control` may
+  restamp it; the radius scale applies.
+- `LibraryShape` — a construction-time widget silhouette
+  (`set_trigger_radius`). Not restamped, but **scaled**: shapes survive
+  proportionally at nonzero scales and square at 0.
+- `Fixed` — final value: author `.radius()` calls **and** the in-pass
+  card-corner stamping. Neither restamped nor scaled.
+- `table.rs` header promotion squares `ThemeDefault` only, as before.
+
+The first sketch named the third state `Author` and had the card
+stamping use `LibraryShape`. Implementation refuted that: the metrics
+walk is pre-order, so the card's propagation (which runs post-scale at
+the parent and stamps the card's *final* corners) executes **before**
+the strips' own scale visits — a scalable origin there would
+double-scale an already-final value, and stamping pre-scale values
+instead resurrects the poke-through for scale-exempt cards. The stamp
+needs scale-immunity, which is exactly the author-call contract; so the
+state is named for the contract (`Fixed`) and both users share it
+honestly. Regression tests: `tab_triggers_square_with_radius_scale_zero`,
+`tab_trigger_silhouette_scales_proportionally` (`metrics.rs`).
 
 ---
 
@@ -545,15 +556,14 @@ each adversarially reviewed. The `RadiusScale{sm,md,lg}` + rung-tag
 design did not land in any form and must not; it cannot meet its own
 spec.
 
+**Also landed (2026-07-26):** the radius-origin flag split (§3
+follow-up) — tabs now square at scale 0.
+
 **Next, in order:**
 
-1. **Radius-origin flag split** (§3 follow-up). Smallest, closes the
-   known hole (tabs at scale 0), and the `RadiusOrigin` distinction is
-   prerequisite-shaped: the shadow knob wants the same explicit-flag
-   pattern anyway.
-2. **Shadow scale** (§4). Blocks the workbench crate's binding "no
+1. **Shadow scale** (§4). Blocks the workbench crate's binding "no
    shadows for chrome"; the crate currently documents the gap.
-3. **Type scale** (§5). Blocks the crate's dense-type claim; slightly
+2. **Type scale** (§5). Blocks the crate's dense-type claim; slightly
    larger blast radius (every text-bearing widget) so it goes last,
    with the same bit-identical-at-1.0 gate as its siblings.
 

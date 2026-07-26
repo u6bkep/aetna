@@ -10,7 +10,7 @@
 // Lock in full per-item documentation for this module (issue #73).
 #![warn(missing_docs)]
 
-use crate::tree::{El, Sides, Size};
+use crate::tree::{El, RadiusOrigin, Sides, Size};
 
 /// T-shirt size for stock controls.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -412,15 +412,20 @@ impl Default for ThemeMetrics {
 /// scale.
 ///
 /// Three carve-outs, each load-bearing:
-/// - `explicit_radius` — the author named the radius, so it is not a
-///   theme default and the scale must not touch it.
+/// - [`RadiusOrigin::Fixed`] — the value is final (author `.radius()`,
+///   or an in-pass finalization like card corner inheritance) and the
+///   scale must not touch it. [`RadiusOrigin::LibraryShape`] values DO
+///   scale: a widget-stamped silhouette (tab-strip edge triggers) is
+///   shape-owned but magnitude-themed, so it squares at `0.0` along
+///   with everything else — matching the web, where shadcn's trigger
+///   radius derives from `--radius`.
 /// - Zero corners stay square, so per-corner silhouettes built with
 ///   [`crate::tree::Corners::top`] and friends survive the rescale as
 ///   shapes rather than collapsing to a uniform radius.
 /// - Corners at or above [`crate::tokens::RADIUS_PILL`] are exempt,
 ///   matching the web: `rounded-full` does not read `--radius`.
 fn apply_radius_scale(el: &mut El, scale: f32) {
-    if scale == 1.0 || el.explicit_radius || !el.radius.any_nonzero() {
+    if scale == 1.0 || el.radius_origin == RadiusOrigin::Fixed || !el.radius.any_nonzero() {
         return;
     }
     el.radius.tl = scale_corner(el.radius.tl, scale);
@@ -494,7 +499,7 @@ fn apply_control(el: &mut El, metrics: ControlMetrics) {
     if !el.explicit_padding && !matches!(el.metrics_role, Some(MetricsRole::IconButton)) {
         el.padding = Sides::xy(metrics.padding_x, 0.0);
     }
-    if !el.explicit_radius {
+    if el.radius_origin == RadiusOrigin::ThemeDefault {
         el.radius = crate::tree::Corners::all(metrics.radius);
     }
     if !el.explicit_gap {
@@ -663,7 +668,7 @@ fn propagate_card_corner_radii(card: &mut El) {
     let pad_bottom = card.padding.bottom;
     let last_idx = card.children.len() - 1;
     for (idx, child) in card.children.iter_mut().enumerate() {
-        if child.fill.is_none() || child.explicit_radius {
+        if child.fill.is_none() || child.radius_origin != RadiusOrigin::ThemeDefault {
             continue;
         }
         match child.metrics_role {
@@ -676,9 +681,13 @@ fn propagate_card_corner_radii(card: &mut El) {
                 };
                 // The inherited corners are the card's FINAL (already
                 // radius-scaled, or scale-exempt) curve; mark them
-                // explicit so the strip's own `apply_radius_scale`
+                // `Fixed` so the strip's own `apply_radius_scale`
                 // visit doesn't rescale them out of sync with the card.
-                child.explicit_radius = true;
+                // (`LibraryShape` would be wrong here: the walk is
+                // pre-order, so the strip's scale visit comes AFTER
+                // this stamp, and a scalable origin would double-scale
+                // an already-final value.)
+                child.radius_origin = RadiusOrigin::Fixed;
             }
             Some(MetricsRole::CardFooter) if idx == last_idx && pad_bottom == 0.0 => {
                 child.radius = crate::tree::Corners {
@@ -687,7 +696,7 @@ fn propagate_card_corner_radii(card: &mut El) {
                     br: card_radius.br,
                     bl: card_radius.bl,
                 };
-                child.explicit_radius = true;
+                child.radius_origin = RadiusOrigin::Fixed;
             }
             _ => {}
         }
@@ -1094,6 +1103,71 @@ mod tests {
         assert_eq!(card_el.radius, Corners::ZERO, "card surface");
         for (idx, child) in card_el.children.iter().enumerate() {
             assert_eq!(child.radius, Corners::ZERO, "control {idx}");
+        }
+    }
+
+    #[test]
+    fn tab_triggers_square_with_radius_scale_zero() {
+        use crate::tree::{Corners, RadiusOrigin};
+        use crate::{column, tabs_list};
+
+        // shadcn's tab-trigger radius derives from `--radius` via the
+        // calc ladder, so a web-trained agent setting the radius to
+        // zero expects tabs to square with everything else. The
+        // triggers' per-corner segment silhouette is `LibraryShape` —
+        // protected from `apply_control`, but magnitude-themed.
+        let mut root = column([tabs_list(
+            "settings",
+            &"account",
+            [("account", "Account"), ("password", "Password")],
+        )]);
+        let list = &root.children[0];
+        assert!(
+            list.children
+                .iter()
+                .all(|t| t.radius_origin == RadiusOrigin::LibraryShape && t.radius.any_nonzero()),
+            "precondition: triggers carry a library-stamped rounded silhouette"
+        );
+
+        crate::Theme::default()
+            .with_radius_scale(0.0)
+            .apply_metrics(&mut root);
+
+        let list = &root.children[0];
+        assert_eq!(list.radius, Corners::ZERO, "the strip squares");
+        for (idx, trigger) in list.children.iter().enumerate() {
+            assert_eq!(trigger.radius, Corners::ZERO, "trigger {idx} squares");
+        }
+    }
+
+    #[test]
+    fn tab_trigger_silhouette_scales_proportionally() {
+        use crate::tree::RadiusOrigin;
+        use crate::{column, tabs_list};
+
+        // At a nonzero scale the segment shape survives: rounded outer
+        // corners shrink, square inner corners stay square.
+        let mut root = column([tabs_list(
+            "settings",
+            &"account",
+            [("account", "Account"), ("password", "Password")],
+        )]);
+        let unscaled: Vec<_> = root.children[0].children.iter().map(|t| t.radius).collect();
+
+        crate::Theme::default()
+            .with_radius_scale(0.5)
+            .apply_metrics(&mut root);
+
+        for (trigger, before) in root.children[0].children.iter().zip(&unscaled) {
+            assert_eq!(trigger.radius_origin, RadiusOrigin::LibraryShape);
+            for (after, before) in trigger
+                .radius
+                .to_array()
+                .iter()
+                .zip(before.to_array().iter())
+            {
+                assert_eq!(*after, before * 0.5, "corners scale, zeros stay zero");
+            }
         }
     }
 
