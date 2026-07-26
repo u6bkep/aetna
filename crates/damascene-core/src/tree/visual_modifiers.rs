@@ -91,6 +91,12 @@ impl El {
     /// the CSS border curve, exact at radius 0. Children painted after
     /// the surface can cover a border they overlap (same z-order as
     /// CSS in-flow children).
+    ///
+    /// Because the border joins the inset, a fixed-height row spends the
+    /// border width out of its content box — a `Size::Fixed(22.0)` row
+    /// with `.border_t()` leaves 21px for content and reads a pixel
+    /// short of its unbordered neighbours. Add the border width back to
+    /// fixed row heights (`22.0 + 1.0`) to stay on the rhythm.
     pub fn border_t(self) -> Self {
         self.edit_border(|b| b.widths.top = 1.0)
     }
