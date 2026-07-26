@@ -203,6 +203,30 @@ impl Theme {
         self
     }
 
+    /// Multiply every theme-default corner radius by `scale` — the
+    /// one-line "how round is this app" knob, matching shadcn's
+    /// `--radius`. `1.0` (the default) leaves stock radii untouched;
+    /// `0.0` squares the app, controls included; `2.0` doubles them.
+    ///
+    /// The metrics pass applies this to every corner a *theme* chose:
+    /// the `default_radius(...)` a widget constructor baked in, and the
+    /// radius the pass itself stamps onto buttons, inputs, and tab
+    /// triggers. Three things survive it:
+    ///
+    /// - An explicit `.radius(...)`. The author named that value, so it
+    ///   is not a theme default.
+    /// - Corners already at `0.0`, so per-corner shapes
+    ///   ([`Corners::top`](crate::tree::Corners::top) and friends) keep
+    ///   their silhouette instead of going uniform.
+    /// - Corners at or above [`tokens::RADIUS_PILL`], because on the web
+    ///   `rounded-full` is independent of `--radius` — pills, badges,
+    ///   avatars, and switch tracks stay round at any scale, including
+    ///   `0.0`.
+    pub fn with_radius_scale(mut self, scale: f32) -> Self {
+        self.metrics = self.metrics.with_radius_scale(scale);
+        self
+    }
+
     pub(crate) fn apply_metrics(&self, root: &mut crate::El) {
         // One fused walk: the tree is large and cold (El is a wide
         // struct), so traversal count dominates — the three passes

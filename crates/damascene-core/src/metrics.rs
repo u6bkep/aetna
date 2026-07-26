@@ -125,6 +125,7 @@ pub struct ThemeMetrics {
     choice_size: Option<ComponentSize>,
     slider_size: Option<ComponentSize>,
     progress_size: Option<ComponentSize>,
+    radius_scale: f32,
 }
 
 impl ThemeMetrics {
@@ -199,6 +200,22 @@ impl ThemeMetrics {
         self
     }
 
+    /// The multiplier applied to every theme-default corner radius.
+    /// `1.0` by default — see [`Self::with_radius_scale`].
+    pub fn radius_scale(&self) -> f32 {
+        self.radius_scale
+    }
+
+    /// Scale every theme-default corner radius in the tree — shadcn's
+    /// one-line `--radius` knob. See [`crate::Theme::with_radius_scale`]
+    /// for the exemptions.
+    pub fn with_radius_scale(mut self, scale: f32) -> Self {
+        // Negative / NaN would paint garbage corners; `f32::max` maps
+        // both to the square end of the range.
+        self.radius_scale = scale.max(0.0);
+        self
+    }
+
     /// Tree-walking form, retained for the unit tests below; the
     /// production path is `Theme::apply_metrics`'s fused walk.
     #[cfg(test)]
@@ -222,6 +239,11 @@ impl ThemeMetrics {
         if el.scrollbar_gutter {
             el.padding.right += crate::tokens::SCROLLBAR_GUTTER;
         }
+        // Last: the role recipes above stamp theme-default radii of
+        // their own (`apply_control`, `propagate_card_corner_radii`),
+        // and those are as much a theme default as a constructor's
+        // `default_radius(...)` — so they scale too.
+        apply_radius_scale(el, self.radius_scale);
     }
 
     fn apply_to_el(&self, el: &mut El) {
@@ -370,7 +392,39 @@ impl Default for ThemeMetrics {
             choice_size: None,
             slider_size: None,
             progress_size: None,
+            // Identity: the metrics pass skips the rescale entirely at
+            // 1.0, so stock radii stay bit-identical.
+            radius_scale: 1.0,
         }
+    }
+}
+
+/// Rescale a node's theme-default corner radii by the theme's radius
+/// scale.
+///
+/// Three carve-outs, each load-bearing:
+/// - `explicit_radius` — the author named the radius, so it is not a
+///   theme default and the scale must not touch it.
+/// - Zero corners stay square, so per-corner silhouettes built with
+///   [`crate::tree::Corners::top`] and friends survive the rescale as
+///   shapes rather than collapsing to a uniform radius.
+/// - Corners at or above [`crate::tokens::RADIUS_PILL`] are exempt,
+///   matching the web: `rounded-full` does not read `--radius`.
+fn apply_radius_scale(el: &mut El, scale: f32) {
+    if scale == 1.0 || el.explicit_radius || !el.radius.any_nonzero() {
+        return;
+    }
+    el.radius.tl = scale_corner(el.radius.tl, scale);
+    el.radius.tr = scale_corner(el.radius.tr, scale);
+    el.radius.br = scale_corner(el.radius.br, scale);
+    el.radius.bl = scale_corner(el.radius.bl, scale);
+}
+
+fn scale_corner(radius: f32, scale: f32) -> f32 {
+    if radius <= 0.0 || radius >= crate::tokens::RADIUS_PILL {
+        radius
+    } else {
+        radius * scale
     }
 }
 
@@ -975,6 +1029,143 @@ mod tests {
         ThemeMetrics::default().apply_to_tree(&mut f);
         assert_eq!(f.gap, tokens::SPACE_3);
         assert_eq!(f.children[0].gap, tokens::SPACE_2);
+    }
+
+    /// A themed tree with no radius scale set must be bit-identical to
+    /// the pre-`with_radius_scale` library. These are the stock radii
+    /// as of that change: a card's `default_radius(RADIUS_LG)`, a
+    /// badge's `BADGE_RADIUS`, an avatar's pill, and the 6 px the
+    /// metrics pass stamps on an `Sm` button.
+    #[test]
+    fn default_radius_scale_leaves_stock_radii_unchanged() {
+        use crate::tree::Corners;
+        use crate::{avatar_initials, badge, card, column};
+
+        let mut root = column([
+            card([button("Save"), badge("New"), avatar_initials("BK")]),
+            text_input("q", "Search", &crate::Selection::default()),
+        ]);
+        crate::Theme::default().apply_metrics(&mut root);
+
+        let card_el = &root.children[0];
+        assert_eq!(card_el.radius, Corners::all(tokens::RADIUS_LG));
+        assert_eq!(card_el.children[0].radius, Corners::all(6.0));
+        assert_eq!(
+            card_el.children[1].radius,
+            Corners::all(crate::widgets::badge::BADGE_RADIUS)
+        );
+        assert_eq!(
+            card_el.children[2].radius,
+            Corners::all(tokens::RADIUS_PILL)
+        );
+        assert_eq!(root.children[1].radius, Corners::all(6.0));
+    }
+
+    #[test]
+    fn radius_scale_zero_squares_stock_controls_and_cards() {
+        use crate::tree::Corners;
+        use crate::{badge, card, column};
+
+        let mut root = column([card([
+            button("Save"),
+            text_input("q", "Search", &crate::Selection::default()),
+            badge("New"),
+        ])]);
+        crate::Theme::default()
+            .with_radius_scale(0.0)
+            .apply_metrics(&mut root);
+
+        let card_el = &root.children[0];
+        assert_eq!(card_el.radius, Corners::ZERO, "card surface");
+        for (idx, child) in card_el.children.iter().enumerate() {
+            assert_eq!(child.radius, Corners::ZERO, "control {idx}");
+        }
+    }
+
+    #[test]
+    fn explicit_radius_survives_radius_scale_zero() {
+        use crate::tree::Corners;
+        use crate::{card, column, text};
+
+        let mut root = column([
+            button("Save").radius(tokens::RADIUS_LG),
+            card([text("Body")]).radius(Corners::top(tokens::RADIUS_MD)),
+        ]);
+        crate::Theme::default()
+            .with_radius_scale(0.0)
+            .apply_metrics(&mut root);
+
+        assert_eq!(root.children[0].radius, Corners::all(tokens::RADIUS_LG));
+        assert_eq!(root.children[1].radius, Corners::top(tokens::RADIUS_MD));
+    }
+
+    #[test]
+    fn pill_radius_survives_radius_scale_zero() {
+        use crate::tree::Corners;
+        use crate::{avatar_initials, badge, column};
+
+        // `rounded-full` on the web is independent of `--radius`, so a
+        // pill stays a pill however square the rest of the app goes —
+        // even when the pill is a theme default, not an author's pick.
+        let mut root = column([
+            badge("New").default_radius(tokens::RADIUS_PILL),
+            avatar_initials("BK"),
+        ]);
+        crate::Theme::default()
+            .with_radius_scale(0.0)
+            .apply_metrics(&mut root);
+
+        assert_eq!(root.children[0].radius, Corners::all(tokens::RADIUS_PILL));
+        assert_eq!(root.children[1].radius, Corners::all(tokens::RADIUS_PILL));
+    }
+
+    #[test]
+    fn per_corner_default_radii_scale_proportionally() {
+        use crate::tree::Corners;
+
+        // A `Corners::top(...)` silhouette must come out of the rescale
+        // still a top-rounded shape, not a uniform one.
+        let mut el = El::new(crate::Kind::Custom("strip")).default_radius(Corners {
+            tl: tokens::RADIUS_LG,
+            tr: tokens::RADIUS_SM,
+            br: 0.0,
+            bl: 0.0,
+        });
+        crate::Theme::default()
+            .with_radius_scale(0.5)
+            .apply_metrics(&mut el);
+
+        assert_eq!(
+            el.radius,
+            Corners {
+                tl: tokens::RADIUS_LG * 0.5,
+                tr: tokens::RADIUS_SM * 0.5,
+                br: 0.0,
+                bl: 0.0,
+            }
+        );
+    }
+
+    #[test]
+    fn card_header_strip_tracks_the_scaled_card_corners() {
+        use crate::tree::Corners;
+        use crate::{card, card_content, card_header, text};
+
+        // The header strip inherits the card's corners inside the same
+        // pass; it must land on the *scaled* curve or it pokes through.
+        let mut tree = card([
+            card_header([text("Header")]).fill(tokens::MUTED),
+            card_content([text("Body")]),
+        ]);
+        crate::Theme::default()
+            .with_radius_scale(0.5)
+            .apply_metrics(&mut tree);
+
+        assert_eq!(tree.radius, Corners::all(tokens::RADIUS_LG * 0.5));
+        assert_eq!(
+            tree.children[0].radius,
+            Corners::top(tokens::RADIUS_LG * 0.5)
+        );
     }
 
     #[test]
