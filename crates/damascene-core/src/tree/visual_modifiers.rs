@@ -70,6 +70,68 @@ impl El {
         self
     }
 
+    /// Mutate this node's [`super::node::BorderSpec`] in place,
+    /// installing the default (all-zero) spec first if the node has no
+    /// border yet. Lets the per-side chainables compose in any order.
+    fn edit_border(mut self, f: impl FnOnce(&mut super::node::BorderSpec)) -> Self {
+        f(self.border.get_or_insert_default());
+        self
+    }
+
+    /// Enable a 1px top border — Tailwind's `border-t`. The color is
+    /// [`Self::border_color`] when set, else `tokens::BORDER` (the
+    /// shadcn preflight default).
+    ///
+    /// Per-side borders are CSS semantics, distinct from
+    /// [`Self::stroke`]: they sit *inside* the rect and join padding
+    /// in the layout content inset, so a `Size::Hug` box grows by the
+    /// border width and a fixed-size box keeps its outer size while
+    /// content insets inward. On a rounded rect each edge quad spans
+    /// the side minus the adjacent corner radii — an approximation of
+    /// the CSS border curve, exact at radius 0. Children painted after
+    /// the surface can cover a border they overlap (same z-order as
+    /// CSS in-flow children).
+    pub fn border_t(self) -> Self {
+        self.edit_border(|b| b.widths.top = 1.0)
+    }
+
+    /// Enable a 1px bottom border — Tailwind's `border-b`. See
+    /// [`Self::border_t`] for the shared semantics.
+    pub fn border_b(self) -> Self {
+        self.edit_border(|b| b.widths.bottom = 1.0)
+    }
+
+    /// Enable a 1px left border — Tailwind's `border-l`. See
+    /// [`Self::border_t`] for the shared semantics.
+    pub fn border_l(self) -> Self {
+        self.edit_border(|b| b.widths.left = 1.0)
+    }
+
+    /// Enable a 1px right border — Tailwind's `border-r`. See
+    /// [`Self::border_t`] for the shared semantics.
+    pub fn border_r(self) -> Self {
+        self.edit_border(|b| b.widths.right = 1.0)
+    }
+
+    /// Set the per-side border color (all sides share one color, like
+    /// CSS `border-color`). Without this, bordered sides paint in
+    /// `tokens::BORDER`. Composes with the side chainables in any
+    /// order; a color with no bordered side paints nothing.
+    pub fn border_color(self, c: Color) -> Self {
+        self.edit_border(|b| b.color = Some(c))
+    }
+
+    /// Set all four border widths at once, in logical pixels — the
+    /// width-override companion to the 1px side chainables, mirroring
+    /// how [`Self::padding`] relates to [`Self::pt`] / [`Self::pb`].
+    /// `Sides::bottom(2.0)` is Tailwind's `border-b-2`; a scalar
+    /// (`.border_widths(1.0)`) borders all four sides. Replaces any
+    /// previously set widths; the color is left as-is.
+    pub fn border_widths(self, w: impl Into<Sides>) -> Self {
+        let w = w.into();
+        self.edit_border(|b| b.widths = w)
+    }
+
     /// Set the element's corner radii. A scalar (e.g.
     /// `.radius(tokens::RADIUS_MD)`) sets all four corners uniformly
     /// via [`Corners::from`]; pass [`Corners::top`] / [`Corners::bottom`]

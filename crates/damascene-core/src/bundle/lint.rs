@@ -68,9 +68,9 @@ pub struct Finding {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FindingKind {
-    /// A fill / stroke / text color authored as raw rgba instead of a
-    /// token. Only fired when the node itself is user code — raw colors
-    /// are intentional inside library widgets.
+    /// A fill / stroke / text / border color authored as raw rgba
+    /// instead of a token. Only fired when the node itself is user code
+    /// — raw colors are intentional inside library widgets.
     RawColor,
     /// A child rect extends past its parent, or text exceeds its box in
     /// a way wrapping/sizing should fix (see the message for the
@@ -857,6 +857,24 @@ fn walk<'a>(
                     source: n.source,
                     message: format!(
                         "text_color is a raw rgba({},{},{},{}) — use a token",
+                        c.r, c.g, c.b, c.a
+                    ),
+                },
+            );
+        }
+        if let Some(c) = n.border.as_deref().and_then(|b| b.color)
+            && c.token.is_none()
+            && c.a > 0.0
+        {
+            push_for(
+                r,
+                n,
+                Finding {
+                    kind: FindingKind::RawColor,
+                    node_id: n.computed_id.clone().to_string(),
+                    source: n.source,
+                    message: format!(
+                        "border_color is a raw rgba({},{},{},{}) — use a token",
                         c.r, c.g, c.b, c.a
                     ),
                 },
@@ -4012,6 +4030,42 @@ mod tests {
                 .iter()
                 .any(|f| f.kind == FindingKind::RawColor),
             "{}",
+            report.text()
+        );
+    }
+
+    #[test]
+    fn raw_border_color_fires_like_fill_and_stroke() {
+        // `.border_color(raw rgba)` must be held to the same token
+        // discipline as fill / stroke; the token-backed default
+        // (`tokens::BORDER`) stays quiet.
+        let root = crate::column(Vec::<El>::new())
+            .border_b()
+            .border_color(crate::Color::srgb_u8a(40, 50, 60, 255))
+            .width(Size::Fixed(40.0))
+            .height(Size::Fixed(40.0));
+        let report = lint_one(root);
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.kind == FindingKind::RawColor && f.message.contains("border_color")),
+            "{}",
+            report.text()
+        );
+
+        let quiet = crate::column(Vec::<El>::new())
+            .border_b()
+            .border_color(crate::tokens::BORDER)
+            .width(Size::Fixed(40.0))
+            .height(Size::Fixed(40.0));
+        let report = lint_one(quiet);
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|f| f.kind == FindingKind::RawColor),
+            "token-backed border color should not fire: {}",
             report.text()
         );
     }
