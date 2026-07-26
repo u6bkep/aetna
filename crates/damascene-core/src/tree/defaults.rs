@@ -60,6 +60,7 @@ impl Default for El {
             dim_fill: None,
             stroke: None,
             stroke_width: 0.0,
+            border: None,
             radius: Corners::ZERO,
             shadow: 0.0,
             surface_role: SurfaceRole::None,
