@@ -71,13 +71,15 @@ where
 
     // shadcn's header row carries the same border-b as body rows —
     // it is what visually separates <thead> from <tbody>.
-    header = header.child(row_rule());
+    if let Some(last) = header.children.pop() {
+        header = header.child(last.border_b());
+    }
     header
 }
 
 /// Body section holding the data [`table_row`]s, like `<tbody>`.
-/// Rows are separated by 1px border-colored rules — the shadcn table
-/// is row-bordered (`tr` gets `border-b`, with `tbody
+/// Every row except the last carries a 1px `.border_b()` — the shadcn
+/// table is row-bordered (`tr` gets `border-b`, with `tbody
 /// tr:last-child` unbordered), not a full cell grid.
 ///
 /// The body is a vertical arrow-nav group: with focus on a
@@ -91,12 +93,10 @@ where
     I: IntoIterator<Item = E>,
     E: Into<El>,
 {
-    let mut children: Vec<El> = Vec::new();
-    for row in rows {
-        if !children.is_empty() {
-            children.push(row_rule());
-        }
-        children.push(row.into());
+    let mut children: Vec<El> = rows.into_iter().map(Into::into).collect();
+    let n = children.len();
+    for row in children.iter_mut().take(n.saturating_sub(1)) {
+        *row = std::mem::take(row).border_b();
     }
     El::new(Kind::Custom("table_body"))
         .at_loc(Location::caller())
@@ -106,14 +106,6 @@ where
         .height(Size::Hug)
         .align(Align::Stretch)
         .arrow_nav(ArrowNav::Vertical)
-}
-
-/// The 1px horizontal rule between table rows (and under the header).
-fn row_rule() -> El {
-    El::new(Kind::Group)
-        .fill(tokens::BORDER)
-        .width(Size::Fill(1.0))
-        .height(Size::Fixed(1.0))
 }
 
 /// A row of cells (like `<tr>`) carrying the theme's table-row
@@ -201,7 +193,8 @@ pub fn table_head_el(content: impl Into<El>) -> El {
 
 /// Body cell (like `<td>`) — wraps arbitrary content in the padded,
 /// ellipsizing cell chrome. Cells carry no borders of their own;
-/// horizontal rules between rows come from [`table_body`].
+/// the horizontal rules between rows are the rows' `.border_b()`,
+/// applied by [`table_body`].
 #[track_caller]
 pub fn table_cell(content: impl Into<El>) -> El {
     let el = content
@@ -265,24 +258,40 @@ mod tests {
             table_row_keyed("r1", [table_cell("b")]),
         ]);
         assert_eq!(body.arrow_nav, Some(ArrowNav::Vertical));
-        // Row, rule, row — the rule is unkeyed so it is not a member.
-        assert_eq!(body.children.len(), 3);
-        assert!(body.children[1].key.is_none());
+        // Two rows, no interleaved rule element: the row separator is a
+        // `border_b()` on every row but the last, so every child of the
+        // body is a keyed, arrow-steppable row.
+        assert_eq!(body.children.len(), 2);
+        assert_eq!(body.children[0].key.as_deref(), Some("r0"));
+        assert_eq!(body.children[1].key.as_deref(), Some("r1"));
+        assert_eq!(
+            body.children[0].border.as_deref().map(|b| b.widths.bottom),
+            Some(1.0),
+            "all but the last row carry the separating rule"
+        );
+        assert!(
+            body.children[1]
+                .border
+                .as_deref()
+                .is_none_or(|b| b.widths.bottom == 0.0),
+            "the last row is unruled"
+        );
     }
 
     #[test]
     fn table_header_promotes_direct_table_rows() {
         let header = table_header([table_row([table_head("Name")])]);
 
-        // Promoted row plus the head/body separating rule.
-        assert_eq!(header.children.len(), 2);
+        // Promoted row carrying the head/body separating border-b.
+        assert_eq!(header.children.len(), 1);
         assert_eq!(
             header.children[0].metrics_role,
             Some(MetricsRole::TableHeader)
         );
         assert_eq!(header.children[0].align, Align::Stretch);
-        assert_eq!(header.children[1].fill, Some(tokens::BORDER));
-        assert_eq!(header.children[1].height, Size::Fixed(1.0));
+        let border = header.children[0].border.as_deref().unwrap();
+        assert_eq!(border.widths, Sides::bottom(1.0));
+        assert_eq!(border.color, None, "header border uses the token default");
     }
 
     #[test]
@@ -298,9 +307,9 @@ mod tests {
     }
 
     #[test]
-    fn table_rows_are_rule_separated_not_grid() {
+    fn table_rows_are_border_separated_not_grid() {
         // shadcn table anatomy: padded borderless cells, transparent
-        // header, and 1px rules between rows (none after the last).
+        // header, and `border-b` on every row but the last.
         let body_cell = table_cell(text("Ada"));
         assert_eq!(
             body_cell.padding,
@@ -317,10 +326,13 @@ mod tests {
             table_row([table_cell(text("a"))]),
             table_row([table_cell(text("b"))]),
         ]);
-        assert_eq!(body.children.len(), 3, "two rows + one rule between");
-        assert_eq!(body.children[1].fill, Some(tokens::BORDER));
-        assert_eq!(body.children[1].height, Size::Fixed(1.0));
-        assert_ne!(body.children[2].fill, Some(tokens::BORDER));
+        assert_eq!(body.children.len(), 2, "rows only — no rule children");
+        let first = body.children[0].border.as_deref().unwrap();
+        assert_eq!(first.widths, Sides::bottom(1.0));
+        assert!(
+            body.children[1].border.is_none(),
+            "tbody tr:last-child is unbordered"
+        );
     }
 
     #[test]
@@ -351,11 +363,102 @@ mod tests {
         );
         let rule_quads = ops
             .iter()
-            .filter(|op| matches!(op, DrawOp::Quad { rect, .. } if rect.h == 1.0))
+            .filter(|op| {
+                matches!(op, DrawOp::Quad { id, rect, .. }
+                    if id.ends_with(".border-b") && rect.h == 1.0)
+            })
             .count();
         assert!(
             rule_quads >= 1,
-            "expected the header/body separating rule, got {rule_quads} 1px quads"
+            "expected the header/body separating border-b quad, got {rule_quads}"
+        );
+    }
+
+    /// The row_rule → `.border_b()` conversion is pixel-neutral: each
+    /// deleted 1px rule child is replaced by its row growing 1px via
+    /// the border joining the content inset. Lay out the legacy
+    /// interleaved-rule anatomy next to the current one and assert the
+    /// total painted height and every rule's y position are unchanged.
+    #[test]
+    fn border_b_conversion_is_pixel_neutral_with_legacy_rules() {
+        use crate::Rect;
+        use crate::draw_ops::draw_ops;
+        use crate::ir::DrawOp;
+        use crate::layout::layout;
+        use crate::state::UiState;
+
+        fn legacy_rule() -> El {
+            El::new(Kind::Group)
+                .fill(tokens::BORDER)
+                .width(Size::Fill(1.0))
+                .height(Size::Fixed(1.0))
+        }
+        fn rows() -> [El; 3] {
+            ["Ada", "Grace", "Edsger"].map(|n| table_row([table_cell(text(n))]))
+        }
+
+        // Legacy anatomy: rules interleaved between rows, plus one
+        // under the header row (what table_header/table_body emitted
+        // before per-side borders).
+        let [r0, r1, r2] = rows();
+        let legacy_header = El::new(Kind::Custom("table_header"))
+            .children([table_row([table_head("Name")]), legacy_rule()])
+            .axis(Axis::Column)
+            .width(Size::Fill(1.0))
+            .height(Size::Hug)
+            .align(Align::Stretch);
+        let legacy_body = El::new(Kind::Custom("table_body"))
+            .children([r0, legacy_rule(), r1, legacy_rule(), r2])
+            .axis(Axis::Column)
+            .width(Size::Fill(1.0))
+            .height(Size::Hug)
+            .align(Align::Stretch);
+        let mut legacy = table([legacy_header, legacy_body]);
+        // table_header's promotion only runs in the real constructor.
+        legacy.children[0].children[0].metrics_role = Some(MetricsRole::TableHeader);
+
+        let mut current = table([
+            table_header([table_row([table_head("Name")])]),
+            table_body(rows()),
+        ]);
+
+        let viewport = Rect::new(0.0, 0.0, 320.0, 400.0);
+        let mut state = UiState::new();
+        layout(&mut legacy, &mut state, viewport);
+        let mut state2 = UiState::new();
+        layout(&mut current, &mut state2, viewport);
+
+        // Total painted height: the tables hug their content, so the
+        // roots' computed heights must match exactly.
+        assert_eq!(
+            legacy.computed_rect.h, current.computed_rect.h,
+            "conversion changed the table's total height"
+        );
+
+        // Rule positions: every legacy 1px rule quad has a border-b
+        // quad at the same y in the converted table.
+        let legacy_ops = draw_ops(&legacy, &state);
+        let current_ops = draw_ops(&current, &state2);
+        let legacy_rule_ys: Vec<f32> = legacy_ops
+            .iter()
+            .filter_map(|op| match op {
+                DrawOp::Quad { id, rect, .. } if rect.h == 1.0 && !id.ends_with(".border-b") => {
+                    Some(rect.y)
+                }
+                _ => None,
+            })
+            .collect();
+        let border_ys: Vec<f32> = current_ops
+            .iter()
+            .filter_map(|op| match op {
+                DrawOp::Quad { id, rect, .. } if id.ends_with(".border-b") => Some(rect.y),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(legacy_rule_ys.len(), 3, "header rule + two body rules");
+        assert_eq!(
+            legacy_rule_ys, border_ys,
+            "border-b quads must land where the legacy rules painted"
         );
     }
 }

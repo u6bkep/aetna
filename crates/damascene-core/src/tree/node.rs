@@ -328,6 +328,14 @@ pub struct El {
     /// Border width in logical pixels; `0.0` (the default) paints no
     /// border.
     pub stroke_width: f32,
+    /// Per-side borders — the CSS `border-b` / `border-t` family. Set
+    /// via [`Self::border_b`] and friends. Unlike [`Self::stroke`]
+    /// (SVG semantics: uniform, centered on the boundary, paint-only),
+    /// per-side borders are CSS semantics: inside the rect, and they
+    /// join padding in the layout content inset (see
+    /// [`Self::content_inset`]). Boxed to keep `El` small — most Els
+    /// carry no border.
+    pub border: Option<Box<BorderSpec>>,
     /// Corner radii in logical pixels. Authored as a scalar in the
     /// common case (`.radius(tokens::RADIUS_MD)` works via
     /// [`super::geometry::Corners::from`]); per-corner shapes use
@@ -752,10 +760,16 @@ pub struct El {
 // measured frame-time lever — see docs and the structure_stress
 // example. If this assert fires, a new or widened field should almost
 // certainly be boxed or folded into one of the existing boxed groups
-// instead of growing the struct. (776 = 768 + the one `Option<Box>`
-// pointer for `a11y`, added 2026-08 per docs/ACCESSIBILITY_PLAN.md.)
+// instead of growing the struct.
+//
+// 768 -> 776: `a11y`, one `Option<Box>` pointer, added 2026-08 per
+// docs/ACCESSIBILITY_PLAN.md.
+// 776 -> 784: `border` (per-side borders) landed as one boxed pointer
+// — the minimum a new Option<Box> payload can cost — with no existing
+// boxed group it belongs in. If another visual pointer arrives, fold
+// it and `border` into a shared box instead of raising this again.
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(std::mem::size_of::<El>() <= 776);
+const _: () = assert!(std::mem::size_of::<El>() <= 784);
 
 /// Motion opt-ins, boxed together on [`El::motion`] so the common
 /// no-motion El pays one pointer.
@@ -765,6 +779,26 @@ pub struct Motion {
     pub animate: Option<Timing>,
     /// First-mount enter transition (see [`El::enter_transition`]).
     pub enter: Option<crate::anim::EnterTransition>,
+}
+
+/// Per-side border configuration, boxed on [`El::border`].
+///
+/// Semantics are CSS `box-sizing: border-box`: each side's border
+/// occupies the outermost pixels of the rect on that side, joins
+/// padding in the content inset ([`El::content_inset`]), and folds
+/// into `Size::Hug` intrinsics the same way padding does. Painted as
+/// plain fill quads (`{id}.border-b` etc.) — no shader involvement,
+/// and theme surface-role recipes (which rewrite stroke uniforms) do
+/// not restyle them.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct BorderSpec {
+    /// Border width per side, in logical pixels. Sides at `0.0` (the
+    /// default) paint nothing and consume no layout.
+    pub widths: Sides,
+    /// Border color shared by all sides. `None` falls back to
+    /// [`crate::tokens::BORDER`] — the shadcn preflight's
+    /// `* { border-color: var(--border) }`.
+    pub color: Option<Color>,
 }
 
 impl El {
@@ -777,5 +811,25 @@ impl El {
     /// The enter transition, if set via [`El::enter_transition`].
     pub fn enter_spec(&self) -> Option<&crate::anim::EnterTransition> {
         self.motion.as_deref().and_then(|m| m.enter.as_ref())
+    }
+
+    /// The content-box inset: [`El::padding`] plus per-side border
+    /// widths. Borders join padding in the inset — every consumer that
+    /// turns a node's rect into its content rect, or folds padding
+    /// into a `Size::Hug` intrinsic, must read this instead of
+    /// `padding` directly, so a border grows an auto-sized box and
+    /// eats inward on a fixed-size one exactly like CSS
+    /// `box-sizing: border-box`.
+    #[inline]
+    pub fn content_inset(&self) -> Sides {
+        match self.border.as_deref() {
+            None => self.padding,
+            Some(b) => Sides {
+                left: self.padding.left + b.widths.left,
+                right: self.padding.right + b.widths.right,
+                top: self.padding.top + b.widths.top,
+                bottom: self.padding.bottom + b.widths.bottom,
+            },
+        }
     }
 }
