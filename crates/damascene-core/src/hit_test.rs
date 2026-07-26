@@ -282,7 +282,7 @@ pub fn selection_point_at(root: &El, point: (f32, f32)) -> Option<SelectionPoint
 }
 
 fn mixed_inline_hit_byte(node: &El, painted_rect: Rect, point: (f32, f32)) -> Option<usize> {
-    let glyph_rect = painted_rect.inset(node.padding);
+    let glyph_rect = painted_rect.inset(node.content_inset());
     let items = mixed_inline_hit_items(node, glyph_rect);
     if items.is_empty() {
         return Some(0);
@@ -672,9 +672,10 @@ fn link_at_rec(
 
 fn link_in_inlines_at(node: &El, painted_rect: Rect, point: (f32, f32)) -> Option<String> {
     // Mirror `draw_ops`'s inline paragraph: glyphs paint inside the
-    // node's padding rect, with the same per-paragraph font size /
-    // line height aggregated from the child Text runs.
-    let glyph_rect = painted_rect.inset(node.padding);
+    // node's content inset (padding + border), with the same
+    // per-paragraph font size / line height aggregated from the child
+    // Text runs.
+    let glyph_rect = painted_rect.inset(node.content_inset());
     if !glyph_rect.contains(point.0, point.1) {
         return None;
     }

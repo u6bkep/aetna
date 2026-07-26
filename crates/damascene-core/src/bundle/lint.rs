@@ -1451,8 +1451,8 @@ fn walk<'a>(
     }
 
     // Text overflow: detect at the node itself (with the node's own
-    // padding-aware content region — text_w includes padding so the
-    // check fires when the text exceeds the padded content area, not
+    // content-inset-aware region — text_w includes padding + border so
+    // the check fires when the text exceeds the inset content area, not
     // just the bare rect). Attribute to the nearest user-source
     // ancestor so closure-built widget leaves still blame user code.
     if n.text.is_some()
@@ -1464,8 +1464,9 @@ fn walk<'a>(
             TextWrap::Wrap => Some(computed.w),
         };
         if let Some(text_layout) = layout::text_layout(n, available_width) {
-            let text_w = text_layout.width + n.padding.left + n.padding.right;
-            let text_h = text_layout.height + n.padding.top + n.padding.bottom;
+            let inset = n.content_inset();
+            let text_w = text_layout.width + inset.left + inset.right;
+            let text_h = text_layout.height + inset.top + inset.bottom;
             let raw_overflow_x = (text_w - computed.w).max(0.0);
             let overflow_x = if matches!(
                 (n.text_wrap, n.text_overflow),
