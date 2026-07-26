@@ -380,7 +380,7 @@ honestly. Regression tests: `tab_triggers_square_with_radius_scale_zero`,
 
 ---
 
-## 4. Theme shadow scale (recommended)
+## 4. Theme shadow scale (landed 2026-07-26)
 
 ### The gap
 
@@ -428,6 +428,19 @@ The workbench crate then sets `with_shadow_scale(0.0)` for chrome and
 keeps popovers/menus shadowed the way VS Code does — via explicit
 shadow in its popover recipe, or a nonzero small scale; that choice is
 the crate's, which is the point.
+
+**As landed:** one refinement found in implementation — at scale `0.0`
+a scaled-away *role default* is **omitted** from the uniforms rather
+than written as `0.0`. `with_role_uniform` values apply by `or_insert`
+after the role material, so writing an explicit zero would block them;
+omission keeps a deliberate re-elevation path open. The workbench
+crate uses exactly this: flat app + `Popover`-role `SHADOW_MD`,
+VS Code's single `widget.shadow` tier. Regression tests:
+`shadow_scale_zero_flattens_stock_recipe_shadows`,
+`explicit_shadow_survives_shadow_scale_zero` (`metrics.rs`), and
+`shadow_scale_reaches_role_defaults_and_keeps_the_restore_path`
+(`draw_ops.rs`, including the end-to-end "role default must not
+resurrect a flattened card shadow" case).
 
 ---
 
@@ -557,15 +570,14 @@ design did not land in any form and must not; it cannot meet its own
 spec.
 
 **Also landed (2026-07-26):** the radius-origin flag split (§3
-follow-up) — tabs now square at scale 0.
+follow-up) — tabs now square at scale 0 — and the shadow scale (§4);
+the workbench theme now ships flat chrome with shadowed overlays.
 
-**Next, in order:**
+**Next:**
 
-1. **Shadow scale** (§4). Blocks the workbench crate's binding "no
-   shadows for chrome"; the crate currently documents the gap.
-2. **Type scale** (§5). Blocks the crate's dense-type claim; slightly
-   larger blast radius (every text-bearing widget) so it goes last,
-   with the same bit-identical-at-1.0 gate as its siblings.
+1. **Type scale** (§5). The last unlanded knob; blocks the crate's
+   dense-type claim. Slightly larger blast radius (every text-bearing
+   widget), same bit-identical-at-1.0 gate as its siblings.
 
 Container size props: dropped. If the dead `.size()` is a concern, lint
 it.

@@ -316,6 +316,12 @@ pub struct El {
     /// metrics pass may do to it (restamp / rescale / nothing). See
     /// [`RadiusOrigin`].
     pub radius_origin: RadiusOrigin,
+    /// Author explicitly set [`Self::shadow`]; the theme's shadow
+    /// scale leaves it alone. Widget recipes bake their elevation tier
+    /// through `default_shadow`, which does not set this — so recipe
+    /// shadows scale with the theme while author shadows survive, the
+    /// same split `radius_origin` draws for corners.
+    pub explicit_shadow: bool,
     /// Author explicitly set [`Self::font_family`]; theme application
     /// leaves it alone.
     pub explicit_font_family: bool,

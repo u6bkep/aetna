@@ -213,13 +213,14 @@ impl Theme {
     /// radius the pass itself stamps onto buttons and inputs. Three
     /// things survive it:
     ///
-    /// - An explicit `.radius(...)`. The author named that value, so it
-    ///   is not a theme default. This exemption also covers corners the
-    ///   library stamps as explicit: `tabs_list` segment triggers
-    ///   (`widgets/tabs.rs` marks their edge radii explicit) and switch
-    ///   tracks (explicit `RADIUS_PILL`) do not scale. Card
+    /// - An explicit `.radius(...)`. The author named that value
+    ///   (`RadiusOrigin::Fixed`), so it is not a theme default. Switch
+    ///   tracks (explicit `RADIUS_PILL`) share the exemption, and card
     ///   header/footer strips inherit the *card's* final corners inside
     ///   the pass, so they track the card whether or not it scaled.
+    ///   Widget-stamped silhouettes (`RadiusOrigin::LibraryShape`,
+    ///   e.g. `tabs_list` segment triggers) are shape-protected but DO
+    ///   scale — they square at `0.0` along with everything else.
     /// - Corners already at `0.0`, so per-corner shapes
     ///   ([`Corners::top`](crate::tree::Corners::top) and friends) keep
     ///   their silhouette instead of going uniform.
@@ -230,6 +231,30 @@ impl Theme {
     ///   other control.)
     pub fn with_radius_scale(mut self, scale: f32) -> Self {
         self.metrics = self.metrics.with_radius_scale(scale);
+        self
+    }
+
+    /// Multiply every theme-default drop shadow by `scale` — the
+    /// elevation counterpart of [`Self::with_radius_scale`], matching
+    /// how a web theme's shadow variables flatten a whole app at once.
+    /// `1.0` (the default) leaves stock shadows untouched; `0.0` makes
+    /// the chrome flat.
+    ///
+    /// The scale reaches both places theme shadows live: the elevation
+    /// tier a widget recipe baked in (`card()`'s `SHADOW_SM`,
+    /// `popover()`'s `SHADOW_MD`, …) and the surface-role *defaults*
+    /// the paint pass fills for `Panel` / `Raised` / `Popover`
+    /// surfaces that declared no tier of their own.
+    ///
+    /// An explicit `.shadow(...)` survives at any scale — the author
+    /// named that elevation, like a hardcoded `box-shadow` ignoring
+    /// the theme's shadow variables. At `0.0` a scaled-away role
+    /// default is *omitted* rather than written as zero, so a
+    /// [`Self::with_role_uniform`]`(role, "shadow", …)` can
+    /// deliberately re-elevate one role (e.g. keep popovers shadowed
+    /// in an otherwise flat app).
+    pub fn with_shadow_scale(mut self, scale: f32) -> Self {
+        self.metrics = self.metrics.with_shadow_scale(scale);
         self
     }
 
@@ -321,7 +346,7 @@ impl Theme {
         uniforms
             .entry("surface_role")
             .or_insert(UniformValue::F32(role.uniform_id()));
-        apply_role_material(role, uniforms, &self.palette);
+        apply_role_material(role, uniforms, &self.palette, self.metrics.shadow_scale());
         if surface.rounded_rect_slots {
             add_rounded_rect_slots(uniforms);
         }
@@ -390,7 +415,25 @@ fn add_rounded_rect_slots(uniforms: &mut UniformBlock) {
     }
 }
 
-fn apply_role_material(role: SurfaceRole, uniforms: &mut UniformBlock, palette: &Palette) {
+fn apply_role_material(
+    role: SurfaceRole,
+    uniforms: &mut UniformBlock,
+    palette: &Palette,
+    shadow_scale: f32,
+) {
+    // Role shadow *defaults* are theme elevation just like the tiers
+    // widget recipes bake in, so the theme's shadow scale applies to
+    // both — otherwise a `Panel` default would resurrect the very
+    // shadow the metrics pass flattened on `card()`. A scaled-away
+    // default is omitted (not written as 0.0) so a role-uniform
+    // override can still re-elevate the role; the downstream reader
+    // treats an absent shadow as none.
+    let default_shadow = |uniforms: &mut UniformBlock, tier: f32| {
+        let scaled = tier * shadow_scale;
+        if scaled > 0.0 {
+            default_f32(uniforms, "shadow", scaled);
+        }
+    };
     // Sunken/Input fill is derived from `muted` by darken, so the
     // base must be palette-resolved *before* the op — otherwise the
     // op runs on the compile-time dark fallback and the surface stays
@@ -406,12 +449,12 @@ fn apply_role_material(role: SurfaceRole, uniforms: &mut UniformBlock, palette: 
             // the gap — an override here would silently clobber e.g. a
             // dialog's larger declared shadow (the pre-0.4.7 behavior,
             // which rendered popovers at the dialog tier).
-            default_f32(uniforms, "shadow", tokens::SHADOW_SM);
+            default_shadow(uniforms, tokens::SHADOW_SM);
         }
         SurfaceRole::Raised => {
             default_color(uniforms, "stroke", tokens::BORDER);
             default_f32(uniforms, "stroke_width", 1.0);
-            default_f32(uniforms, "shadow", tokens::SHADOW_XS);
+            default_shadow(uniforms, tokens::SHADOW_XS);
         }
         SurfaceRole::Sunken | SurfaceRole::Input => {
             set_color(
@@ -429,7 +472,7 @@ fn apply_role_material(role: SurfaceRole, uniforms: &mut UniformBlock, palette: 
             // Default (see Panel): the shadcn tier for the popover
             // family is `shadow-md`; dialogs/sheets share this role
             // but declare `SHADOW_LG` themselves and keep it.
-            default_f32(uniforms, "shadow", tokens::SHADOW_MD);
+            default_shadow(uniforms, tokens::SHADOW_MD);
         }
         SurfaceRole::Selected => {
             default_color(uniforms, "fill", tokens::PRIMARY.with_alpha_u8(28));
