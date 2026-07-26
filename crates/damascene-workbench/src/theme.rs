@@ -72,6 +72,19 @@ use crate::tokens as vs;
 /// pins itself at exactly 2px instead of inheriting a scaled value.
 pub const RADIUS_SCALE: f32 = vs::RADIUS / 7.0;
 
+/// Type scale: 13/14 — VS Code's 13px workbench UI font over
+/// damascene's 14px `TEXT_SM` body/label baseline.
+///
+/// `Theme::with_type_scale` is the rem analogue: every role- and
+/// rung-derived size scales together, line heights included, so the
+/// whole ladder lands where VS Code's does — body/label 14 → 13px,
+/// caption 12 → 11.1px (VS Code's small text runs ~11px), titles and
+/// headings proportional. Hand-picked `.font_size(...)` values
+/// survive, exactly as `text-[15px]` ignores a rem theme. Control
+/// heights are deliberately independent — density is
+/// `with_default_component_size`'s job.
+pub const TYPE_SCALE: f32 = 13.0 / 14.0;
+
 /// Dark Modern mapped onto the shadcn palette slots, plus every
 /// workbench key registered as an extra token.
 ///
@@ -353,7 +366,9 @@ pub fn register_workbench_tokens(p: Palette) -> Palette {
 /// and where each one lives:
 ///
 /// 1. **Control scale** — `with_default_component_size(Xs)` puts stock
-///    buttons and inputs on the 28px rung instead of shadcn's 36px `Md`.
+///    buttons and inputs on the 28px rung instead of shadcn's 36px `Md`,
+///    and [`TYPE_SCALE`] takes the whole type ladder to VS Code's 13px
+///    baseline (body/label 13px, captions ~11px).
 /// 2. **Radius + shadow** — [`RADIUS_SCALE`] takes every theme-default
 ///    corner, controls included, down to the 1–3.5px band, and
 ///    `with_shadow_scale(0.0)` flattens every recipe shadow: cards and
@@ -380,6 +395,7 @@ pub fn theme() -> Theme {
         .with_default_component_size(ComponentSize::Xs)
         .with_radius_scale(RADIUS_SCALE)
         .with_shadow_scale(0.0)
+        .with_type_scale(TYPE_SCALE)
         // Flat app, shadowed overlays: the scaled-away role default is
         // omitted rather than zeroed, exactly so this re-elevation can
         // land (see `Theme::with_shadow_scale`). One tier for the whole

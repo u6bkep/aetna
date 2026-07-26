@@ -26,16 +26,15 @@
 //!
 //! | signal | shadcn | workbench |
 //! |---|---|---|
-//! | control scale | 36px `Md` controls | 28px `Xs` controls |
+//! | control scale | 36px `Md` controls, 14px type | 28px `Xs` controls, 13px type |
 //! | radius + shadow | 7–12px, floating shadows | ~2px, flat chrome (overlays keep `SHADOW_MD`) |
 //! | surfaces | one bg, outlined cards floating on it | layered fills, 1px separators |
 //! | whitespace | spent to look calm | spent on information |
 //!
-//! One inversion is **not yet delivered** because core `Theme` has no
-//! knob for it (proposed in `docs/VOCABULARY_PARITY.md` §5): stock
-//! control labels still render at 14px (`TextRole` sizes are fixed in
-//! core; only this crate's own chrome drops to 12px captions). Until
-//! the type-scale knob lands, dense type exists only in the chrome.
+//! All four run through core theme knobs (`with_default_component_size`,
+//! `with_radius_scale`, `with_shadow_scale`, `with_type_scale`, the
+//! palette) — the crate contributes values and chrome recipes, no
+//! mechanisms.
 //!
 //! # Why VS Code specifically
 //!

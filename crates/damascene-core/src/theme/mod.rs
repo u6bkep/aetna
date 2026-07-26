@@ -258,6 +258,30 @@ impl Theme {
         self
     }
 
+    /// Multiply every role- and rung-derived font size and line height
+    /// by `scale` — the analogue of setting the root font size on the
+    /// web, where the whole rem-based type ladder scales together.
+    /// `1.0` (the default) leaves stock type untouched; `13.0 / 14.0`
+    /// puts 14px body/label text at 13px.
+    ///
+    /// What scales: everything a role or rung chose — `TextRole`
+    /// stamps (`.body()`, `.caption()`, `.title()`, …), the `.small()`
+    /// / `.xsmall()` ladder rungs, and default icon sizes — with line
+    /// heights scaling alongside so vertical rhythm survives.
+    ///
+    /// What survives: a raw `.font_size(...)`, `.line_height(...)`, or
+    /// `.icon_size(...)` — the author hand-picked those values, like
+    /// `text-[15px]` ignoring a rem theme.
+    ///
+    /// What deliberately does NOT scale: control heights and paddings.
+    /// Those are the [`ComponentSize`] ladder's job
+    /// ([`Self::with_default_component_size`]), so type density and
+    /// control density stay independently tunable.
+    pub fn with_type_scale(mut self, scale: f32) -> Self {
+        self.metrics = self.metrics.with_type_scale(scale);
+        self
+    }
+
     pub(crate) fn apply_metrics(&self, root: &mut crate::El) {
         // One fused walk: the tree is large and cold (El is a wide
         // struct), so traversal count dominates — the three passes

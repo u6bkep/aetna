@@ -322,6 +322,13 @@ pub struct El {
     /// shadows scale with the theme while author shadows survive, the
     /// same split `radius_origin` draws for corners.
     pub explicit_shadow: bool,
+    /// Author took manual control of this node's type metrics — set by
+    /// the raw `.font_size(...)` / `.line_height(...)` / `.icon_size(...)`
+    /// setters; the theme's type scale leaves the node alone. Role- and
+    /// rung-derived sizes (`.caption()`, `.small()`, …) do NOT set this
+    /// and scale with the theme, the same line the web draws between
+    /// rem-derived `text-sm` and a hand-picked `text-[15px]`.
+    pub explicit_font_size: bool,
     /// Author explicitly set [`Self::font_family`]; theme application
     /// leaves it alone.
     pub explicit_font_family: bool,
@@ -801,8 +808,12 @@ pub struct El {
 // — the minimum a new Option<Box> payload can cost — with no existing
 // boxed group it belongs in. If another visual pointer arrives, fold
 // it and `border` into a shared box instead of raising this again.
+// 784 -> 792: `explicit_font_size` (the type-scale opt-out flag). A
+// single bool, but 784 was exactly saturated — the flag words were
+// full — so it costs a whole alignment word. The next flag is free
+// again; the next *field* is not.
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(std::mem::size_of::<El>() <= 784);
+const _: () = assert!(std::mem::size_of::<El>() <= 792);
 
 /// Motion opt-ins, boxed together on [`El::motion`] so the common
 /// no-motion El pays one pointer.

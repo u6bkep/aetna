@@ -37,10 +37,12 @@ use crate::widgets::text::text;
 #[track_caller]
 pub fn code_block(s: impl Into<String>) -> El {
     let loc = Location::caller();
+    // No `.font_size(...)`: `TEXT_SM` is already the El default, and
+    // the raw setter would claim author intent — pinning code blocks
+    // against `Theme::with_type_scale` when they should track it.
     let body = text(s)
         .at_loc(loc)
         .mono()
-        .font_size(tokens::TEXT_SM.size)
         .nowrap_text()
         .width(Size::Hug)
         .height(Size::Hug);

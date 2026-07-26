@@ -77,16 +77,23 @@ impl El {
 
     /// Font size in logical px. Also re-derives the line height from
     /// the size→line-height token curve; chain [`Self::line_height`]
-    /// afterwards to override it.
+    /// afterwards to override it. A hand-picked size is the author's
+    /// choice and survives [`crate::Theme::with_type_scale`] — like
+    /// `text-[15px]` ignoring a rem-based theme; role and rung sizes
+    /// (`.caption()`, `.small()`) scale instead.
     pub fn font_size(mut self, s: f32) -> Self {
         self.font_size = s;
         self.line_height = crate::tokens::line_height_for_size(s);
+        self.explicit_font_size = true;
         self
     }
 
     /// Explicit line height in logical px (clamped to at least 1).
+    /// Claims the node's type metrics for the author, so the theme's
+    /// type scale leaves both size and line height alone.
     pub fn line_height(mut self, h: f32) -> Self {
         self.line_height = h.max(1.0);
+        self.explicit_font_size = true;
         self
     }
 
@@ -170,6 +177,7 @@ impl El {
         let size = size.max(1.0);
         self.font_size = size;
         self.line_height = size;
+        self.explicit_font_size = true;
         if matches!(&self.kind, Kind::Custom(name) if *name == "icon") {
             self.width = Size::Fixed(size);
             self.height = Size::Fixed(size);
@@ -180,6 +188,7 @@ impl El {
             if matches!(&child.kind, Kind::Custom(name) if *name == "icon") {
                 child.font_size = size;
                 child.line_height = size;
+                child.explicit_font_size = true;
                 child.width = Size::Fixed(size);
                 child.height = Size::Fixed(size);
                 child.explicit_width = true;
