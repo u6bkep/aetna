@@ -242,7 +242,7 @@ mod tests {
     fn chip_radius_is_explicit_so_the_radius_scale_leaves_it_alone() {
         // If this flag ever stops being set, a consumer squaring the app
         // with `with_radius_scale(0.0)` would flatten chips too.
-        assert!(chip("3").explicit_radius);
+        assert_eq!(chip("3").radius_origin, RadiusOrigin::Fixed);
     }
 
     #[test]

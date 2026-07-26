@@ -16,7 +16,7 @@ use crate::shader::ShaderBinding;
 use crate::style::StyleProfile;
 
 use super::geometry::{Corners, Sides};
-use super::node::{El, FocusRingPlacement};
+use super::node::{El, FocusRingPlacement, RadiusOrigin};
 use super::semantics::SurfaceRole;
 use crate::color::Color;
 
@@ -139,7 +139,7 @@ impl El {
     /// [`Corners`], to round only a subset of corners.
     pub fn radius(mut self, r: impl Into<Corners>) -> Self {
         self.radius = r.into();
-        self.explicit_radius = true;
+        self.radius_origin = RadiusOrigin::Fixed;
         self
     }
 
@@ -330,7 +330,7 @@ impl El {
 
     pub(crate) fn default_radius(mut self, r: impl Into<Corners>) -> Self {
         self.radius = r.into();
-        self.explicit_radius = false;
+        self.radius_origin = RadiusOrigin::ThemeDefault;
         self
     }
 }

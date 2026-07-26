@@ -29,6 +29,31 @@ pub enum FocusRingPlacement {
     Inside,
 }
 
+/// Where a node's [`El::radius`] came from — the contract the theme
+/// metrics pass honors when restamping and rescaling corners.
+///
+/// The axis is the *contract*, not the author: what matters to the
+/// pass is whether it may replace the shape and whether the magnitude
+/// is still theme-owned, not who wrote the value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum RadiusOrigin {
+    /// A constructor default (`default_radius`) or untouched zero. The
+    /// metrics pass may restamp it (`apply_control`) and the theme's
+    /// radius scale applies.
+    #[default]
+    ThemeDefault,
+    /// A widget stamped a deliberate silhouette at construction time
+    /// (e.g. tab-strip edge triggers). The pass must not replace the
+    /// shape, but its magnitude is still theme-owned: the radius scale
+    /// applies corner-proportionally, so the silhouette survives at
+    /// any nonzero scale and squares at `0.0`.
+    LibraryShape,
+    /// The value is final — an author `.radius(...)` call, or an
+    /// in-pass finalization stamped from already-scaled values (card
+    /// corner inheritance). Neither restamped nor rescaled.
+    Fixed,
+}
+
 /// The core tree node.
 ///
 /// Construct via the component builders (`text`, `button`, `card`,
@@ -287,8 +312,10 @@ pub struct El {
     pub explicit_padding: bool,
     /// Author explicitly set [`Self::gap`]; theme metrics leave it alone.
     pub explicit_gap: bool,
-    /// Author explicitly set [`Self::radius`]; theme metrics leave it alone.
-    pub explicit_radius: bool,
+    /// Where [`Self::radius`] came from; decides what the theme
+    /// metrics pass may do to it (restamp / rescale / nothing). See
+    /// [`RadiusOrigin`].
+    pub radius_origin: RadiusOrigin,
     /// Author explicitly set [`Self::font_family`]; theme application
     /// leaves it alone.
     pub explicit_font_family: bool,

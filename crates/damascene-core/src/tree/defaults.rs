@@ -9,7 +9,7 @@ use crate::style::StyleProfile;
 
 use super::geometry::{Corners, Rect, Sides};
 use super::layout_types::{Align, Axis, Justify, Size};
-use super::node::El;
+use super::node::{El, RadiusOrigin};
 use super::semantics::{Kind, Source, SurfaceRole};
 use super::text_types::{FontFamily, FontWeight, TextAlign, TextOverflow, TextRole, TextWrap};
 
@@ -54,7 +54,7 @@ impl Default for El {
             explicit_height: false,
             explicit_padding: false,
             explicit_gap: false,
-            explicit_radius: false,
+            radius_origin: RadiusOrigin::ThemeDefault,
             explicit_font_family: false,
             explicit_mono_font_family: false,
             explicit_mono: false,
