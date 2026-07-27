@@ -5,7 +5,7 @@
 //!
 //! **Surfaces & shells**
 //! - [`card`] — boxed content surface; `card([card_header, card_content, card_footer])` and `titled_card("Title", [...])`
-//! - [`sidebar`] — nav rail; `sidebar([sidebar_header, sidebar_group([sidebar_group_label, sidebar_menu([sidebar_menu_button(...)])])])`
+//! - [`sidebar`] — nav rail; `sidebar([sidebar_header, sidebar_content([sidebar_group([sidebar_group_label, sidebar_menu([sidebar_menu_button_with(label, current, SidebarMenuButtonOpts::default().icon(...).trailing(badge("7")))])])]), sidebar_footer])`; `sidebar_with(children, SidebarOpts::default().collapsed(true))` renders the icon rail
 //! - [`toolbar`] — page-chrome header row; `toolbar([toolbar_title, spacer(), toolbar_group([...])])`
 //! - [`dialog`] — modal dialog; `dialog(key, [dialog_header, body, dialog_footer])`
 //! - [`sheet`] — edge-pinned modal; `sheet(key, SheetSide::Right, [sheet_header, body])`
@@ -16,7 +16,8 @@
 //! - [`item`] — clickable resource row (recent file, repo, project, person, asset entry); `item([item_media_icon, item_content([item_title, item_description]), item_actions([...])])` inside `item_group([...])`
 //! - [`list`] — plain `bullet_list` / `numbered_list` / `task_list` for prose-style enumerations
 //! - [`table`] — structured tabular data; `table([table_header([table_row([table_head(...)])]), table_body([...])])`. Proportioned/aligned columns come from one shared `&[TableColumn]` spec via `table_header_cells(COLS, [...])` + `table_row_cells(key, COLS, [...])`; rows are `.focusable()`-safe (inside focus ring)
-//! - [`accordion`] — collapsible section; `accordion_item("group", "key", "Title", open, [...])` + `accordion::apply_event`
+//! - [`accordion`] — a stack of disclosure sections where opening one closes the rest; `accordion_item("group", "key", "Title", open, [...])` + `accordion::apply_event`
+//! - [`collapsible`] — one standalone disclosure section (accordion's single-item sibling); `collapsible("advanced", "Advanced", open, [...])` + `collapsible::apply_event(&mut open, &event, "advanced")`
 //!
 //! **Navigation**
 //! - [`tabs`] — segmented control / tabs; `tabs_list(key, &current, options)` + `tabs::apply_event`; `tabs_list_from_triggers([...])` for icon/badge tabs
@@ -64,6 +65,7 @@
 //! **Structural primitives**
 //! - [`separator`] — `separator()` / `vertical_separator()` (1px line, content-aware)
 //! - [`resize_handle`] — `resize_handle(key, Axis::Row)` + `resize_handle::apply_event_fixed` / `apply_event_weights` for draggable splitters
+//! - [`resizable`] — linear resizable panel group over app-owned fractions; `resizable_panel_group(Axis::Row, key, [resizable_panel(0.25, rail), resizable_handle(), resizable_panel(0.75, main)])` + `resizable::apply_event`
 //!
 //! # Symmetry invariant
 //!
@@ -90,6 +92,7 @@ pub mod calendar;
 pub mod card;
 pub mod checkbox;
 pub mod code_block;
+pub mod collapsible;
 pub mod command;
 pub mod dialog;
 pub mod dropdown_menu;
@@ -111,6 +114,7 @@ pub mod pagination;
 pub mod popover;
 pub mod progress;
 pub mod radio;
+pub mod resizable;
 pub mod resize_handle;
 pub mod select;
 pub mod separator;

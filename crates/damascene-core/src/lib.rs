@@ -202,6 +202,10 @@ pub use widgets::card::{
 };
 pub use widgets::checkbox::checkbox;
 pub use widgets::code_block::{code_block, code_block_chrome};
+pub use widgets::collapsible::{
+    collapsible, collapsible_content, collapsible_trigger, collapsible_trigger_with_icon,
+    collapsible_with_icon,
+};
 pub use widgets::command::{
     command_group, command_icon, command_item, command_label, command_row, command_shortcut,
 };
@@ -254,6 +258,10 @@ pub use widgets::popover::{
 };
 pub use widgets::progress::progress;
 pub use widgets::radio::{RadioAction, radio_group, radio_item, radio_option_key};
+pub use widgets::resizable::{
+    ResizableChild, ResizableDrag, ResizableOpts, resizable_handle, resizable_handle_key,
+    resizable_handle_with_grip, resizable_panel, resizable_panel_group,
+};
 pub use widgets::select::{
     SelectAction, select_menu, select_menu_with_density, select_option_key, select_trigger,
 };
@@ -262,8 +270,10 @@ pub use widgets::sheet::{
     SheetSide, sheet, sheet_content, sheet_description, sheet_footer, sheet_header, sheet_title,
 };
 pub use widgets::sidebar::{
-    sidebar, sidebar_group, sidebar_group_label, sidebar_header, sidebar_menu, sidebar_menu_button,
-    sidebar_menu_button_with_icon, sidebar_menu_item, sidebar_menu_label,
+    SIDEBAR_GROUP_ACTION_SIZE, SidebarMenuButtonOpts, SidebarOpts, sidebar, sidebar_content,
+    sidebar_footer, sidebar_group, sidebar_group_action, sidebar_group_label, sidebar_header,
+    sidebar_menu, sidebar_menu_button, sidebar_menu_button_with, sidebar_menu_button_with_icon,
+    sidebar_menu_item, sidebar_menu_label, sidebar_with,
 };
 pub use widgets::skeleton::{skeleton, skeleton_circle};
 pub use widgets::slider::{SliderAction, slider};

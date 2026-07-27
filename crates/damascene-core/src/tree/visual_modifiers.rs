@@ -55,11 +55,21 @@ impl El {
     /// Set the element's border color. Also sets the stroke width to
     /// 1 logical px if it's still 0 (so `.stroke(c)` alone draws a
     /// hairline border).
+    ///
+    /// On a joined group ([`crate::button_group`] /
+    /// [`toggle_group`](crate::widgets::toggle::toggle_group)) this is
+    /// also the color of the seams between its segments: frame and
+    /// dividers are one authored line. See the
+    /// [`button_group`](crate::widgets::button_group) module docs.
     pub fn stroke(mut self, c: Color) -> Self {
         self.stroke = Some(c);
         if self.stroke_width == 0.0 {
             self.stroke_width = 1.0;
         }
+        // The group's segments were seamed when it was built, before
+        // this authored color existed; re-point them now. A `Kind`
+        // discriminant test for everything else.
+        crate::widgets::button_group::restroke_seams(&mut self);
         self
     }
 

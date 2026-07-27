@@ -94,6 +94,10 @@ pub use crate::widgets::card::{
 };
 pub use crate::widgets::checkbox::{self, checkbox};
 pub use crate::widgets::code_block::{code_block, code_block_chrome};
+pub use crate::widgets::collapsible::{
+    self, collapsible, collapsible_content, collapsible_trigger, collapsible_trigger_with_icon,
+    collapsible_with_icon,
+};
 pub use crate::widgets::command::{
     self, command_group, command_icon, command_item, command_label, command_row, command_shortcut,
 };
@@ -151,6 +155,10 @@ pub use crate::widgets::progress::{
     self, progress, progress_indeterminate, progress_indeterminate_with_color, progress_with_color,
 };
 pub use crate::widgets::radio::{self, RadioAction, radio_group, radio_item, radio_option_key};
+pub use crate::widgets::resizable::{
+    self, ResizableChild, ResizableDrag, ResizableOpts, resizable_handle, resizable_handle_key,
+    resizable_handle_with_grip, resizable_panel, resizable_panel_group,
+};
 pub use crate::widgets::resize_handle::{self, ResizeDrag, ResizeWeightsDrag, resize_handle};
 pub use crate::widgets::select::{
     self, SelectAction, select_menu, select_menu_selected, select_menu_selected_with_density,
@@ -162,8 +170,10 @@ pub use crate::widgets::sheet::{
     sheet_title,
 };
 pub use crate::widgets::sidebar::{
-    self, sidebar, sidebar_group, sidebar_group_label, sidebar_header, sidebar_menu,
-    sidebar_menu_button, sidebar_menu_button_with_icon, sidebar_menu_item, sidebar_menu_label,
+    self, SIDEBAR_GROUP_ACTION_SIZE, SidebarMenuButtonOpts, SidebarOpts, sidebar, sidebar_content,
+    sidebar_footer, sidebar_group, sidebar_group_action, sidebar_group_label, sidebar_header,
+    sidebar_menu, sidebar_menu_button, sidebar_menu_button_with, sidebar_menu_button_with_icon,
+    sidebar_menu_item, sidebar_menu_label, sidebar_with,
 };
 pub use crate::widgets::skeleton::{self, skeleton, skeleton_circle};
 pub use crate::widgets::slider::{self, SliderAction, slider, slider_with_color};

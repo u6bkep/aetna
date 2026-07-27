@@ -9,9 +9,9 @@
 //! start from the crate's slot mapping, re-register the workbench keys
 //! with the app's own values, keep the metrics.
 //!
-//! Everything structural is stock: `toggle_item`, `select_trigger`,
-//! `checkbox`, `field_row`, `icon_button`, `menubar_trigger`, plus
-//! `chrome::{status_bar, pane_header}`.
+//! Everything structural is stock: `button_group`, `toggle_item`,
+//! `select_trigger`, `checkbox`, `field_row`, `icon_button`,
+//! `menubar_trigger`, plus `chrome::{status_bar, pane_header}`.
 //!
 //! Run: `cargo run -p damascene-workbench --example slicer_match`
 
@@ -292,57 +292,32 @@ impl Slicer {
         if mono { t.mono() } else { t }
     }
 
-    /// A bordered segmented control.
+    /// A bordered segmented control: stock `button_group` in a trough.
     ///
-    /// Stock `toggle_group` now *is* a joined trough — the 2026-07
-    /// anatomy arc gave it `button_group::join_row`'s corner collapse
-    /// and seam rule — so the shape is no longer the reason this helper
-    /// exists. Two things are:
+    /// `button_group` is the public joiner that takes pre-built
+    /// children — needed here because two of the three groups are not
+    /// `toggle_item`s (the overlay pair is `button_with_icon`, see
+    /// below) while `toggle_group` builds its own items from
+    /// `(value, label)` pairs. It brings the corner collapse, the
+    /// flush-neighbour hygiene, and the seams; `.stroke(...)` on the
+    /// group paints frame *and* seams in this target's `input.border`.
     ///
-    /// - **The seam color.** `join_row` writes `tokens::BORDER`, the
-    ///   region-rule slot (`C_BORDER`, 42/47/56 here). This target's
-    ///   segment seams are `input.border` (`C_INPUT_BORDER`, 58/65/77),
-    ///   a step brighter, and there is no hook to re-point them.
-    ///   Measured on the `button_group` route: seams shift one pixel
-    ///   and darken to `C_BORDER`, and `join_row` suppresses the seam
-    ///   entirely next to the selected segment (whose `.current()`
-    ///   stroke it treats as already drawing that edge) — 2445 changed
-    ///   pixels across the frame.
-    /// - **The items.** Two of the three groups here are not
-    ///   `toggle_item`s at all (the overlay pair is `button_with_icon`,
-    ///   see below), and the public `toggle_group` builds its own items
-    ///   from `(value, label)` pairs. `join_row` itself is
-    ///   `pub(crate)`; `button_group` is the only public joiner that
-    ///   takes pre-built children, and it carries the same fixed seam.
-    ///
-    /// Everything else this adds is match-exercise calibration: the
-    /// trough fill, the per-item height, the `clip()`.
+    /// What is left is match-exercise calibration: the trough fill, the
+    /// per-item height, and the `clip()` + square segments that make the
+    /// trough own the outer silhouette (`RADIUS_SM` here rather than the
+    /// segments' own `RADIUS_MD`).
     fn segmented(items: Vec<El>, height: f32) -> El {
-        let items: Vec<El> = items
-            .into_iter()
-            .enumerate()
-            .map(|(i, it)| {
-                let it = it
-                    .height(Size::Fixed(height))
-                    .radius(0.0)
-                    .font_weight(FontWeight::Medium);
-                if i == 0 {
-                    it
-                } else {
-                    it.border_l().border_color(C_INPUT_BORDER)
-                }
-            })
-            .collect();
-        row(items)
-            .gap(tokens::SPACE_0)
-            .arrow_nav(ArrowNav::Horizontal)
-            .fill(C_INPUT)
-            .stroke(C_INPUT_BORDER)
-            .radius(tokens::RADIUS_SM)
-            .clip()
-            .width(Size::Hug)
-            .height(Size::Fixed(height))
-            .align(Align::Stretch)
+        button_group(items.into_iter().map(|it| {
+            it.height(Size::Fixed(height))
+                .radius(0.0)
+                .font_weight(FontWeight::Medium)
+        }))
+        .arrow_nav(ArrowNav::Horizontal)
+        .fill(C_INPUT)
+        .stroke(C_INPUT_BORDER)
+        .radius(tokens::RADIUS_SM)
+        .clip()
+        .height(Size::Fixed(height))
     }
 
     /// The count disc on a section header. `chrome::chip` is the stock
