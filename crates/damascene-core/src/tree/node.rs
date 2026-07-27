@@ -78,6 +78,11 @@ pub struct El {
     /// per-node state survives rebuilds; the layout pass folds it into
     /// the path-based [`Self::computed_id`].
     pub key: Option<String>,
+    /// Accessibility semantics — today just the accessible name, boxed
+    /// so the overwhelming majority of Els (which carry none) pay one
+    /// pointer. Read through [`Self::accessible_name`]; set through
+    /// [`name`][method@Self::name]. See [`Semantics`].
+    pub semantics: Option<Box<Semantics>>,
     /// Claim every pointer event inside this node's painted rect so
     /// clicks (and scroll routing) don't fall through to lower layers.
     /// Set on popover / dialog panels via [`Self::block_pointer`].
@@ -434,9 +439,15 @@ pub struct El {
     /// Tooltip text. When set, the runtime synthesizes a hover-driven
     /// tooltip layer anchored to this node — appearing after the
     /// hover delay elapses, fading in with the standard envelope, and
-    /// dismissed when the pointer leaves or presses the node. The
-    /// trigger doesn't have to be focusable or keyed; the runtime
-    /// anchors the tooltip via the trigger's `computed_id`.
+    /// dismissed when the pointer leaves or presses the node.
+    ///
+    /// Two preconditions, both lint-checked — see
+    /// [`tooltip`][method@Self::tooltip] for the full contract and the
+    /// one-line fixes. The trigger needs its own [`Self::key`] (only
+    /// keyed nodes are hit-test targets, so an unkeyed carrier is
+    /// silently dead), and the `App::build` root must be an
+    /// `Axis::Overlay` container for the synthesized layer to mount
+    /// on. Focusability is *not* required.
     pub tooltip: Option<String>,
     /// Pointer cursor declared for this element. `None` falls through
     /// to whatever an ancestor declared, else [`crate::cursor::Cursor::Default`].
@@ -778,8 +789,58 @@ pub struct El {
 // — the minimum a new Option<Box> payload can cost — with no existing
 // boxed group it belongs in. If another visual pointer arrives, fold
 // it and `border` into a shared box instead of raising this again.
+//
+// 776 -> 784: `semantics` (the accessible name). Same minimum — one
+// boxed pointer — but unlike `border` it arrives as a *group*, not a
+// lone field: `Semantics` is the home for the rest of the
+// accessibility payload (role, description, value text) whenever an
+// a11y bridge lands, so those cost zero further bytes. No visual
+// pointer belongs in it; the `border` instruction above still stands
+// on its own terms.
+//
+// Measured, not assumed: 776 was exactly saturated before this field
+// (an added `Option<Box<str>>`, 16 bytes, put it at 792), so the
+// ceiling below is tight at 784 and the next new field will trip it.
+//
+// The fold that would have made this free — and would still make the
+// *next* one free — is `tooltip` (24 bytes, inline, rarely set, and
+// the same species as `name`: a short human-readable label). Moving
+// it into `Semantics` takes El to 760. Not done here because
+// `El::tooltip` is a public field with ~13 read sites, so it is a
+// deliberate refactor rather than a side effect of adding a name.
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(std::mem::size_of::<El>() <= 776);
+const _: () = assert!(std::mem::size_of::<El>() <= 784);
+
+/// Accessibility semantics, boxed together on [`El::semantics`] so the
+/// common El — which has no accessible name because its visible text
+/// already names it — pays one pointer.
+///
+/// Deliberately a group with one field today. Damascene has no
+/// platform accessibility bridge; when one lands it needs role,
+/// description, and value text alongside the name, and this is where
+/// they go without touching [`El`]'s size budget again.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct Semantics {
+    /// Accessible name — a short human-readable label for a control
+    /// whose visible content carries no text (icon-only buttons,
+    /// graphic toggles, plot canvases). The ARIA *accessible name* of
+    /// the node, in the sense of `aria-label` / `alt`.
+    ///
+    /// Distinct from [`El::key`] (a machine identity for state lookup,
+    /// never shown to a person) and from
+    /// [`tooltip`][field@El::tooltip] (a hover affordance with timing,
+    /// layout, and an overlay-root requirement, which a name pairs
+    /// with but does not replace). A name has no visual or timing
+    /// behavior at all: it is carried on the node and printed by
+    /// inspection artifacts ([`crate::bundle::inspect::dump_tree`]) so
+    /// headless review — and any future accessibility bridge — can
+    /// read what a graphic control is called.
+    ///
+    /// Set via [`name`][method@El::name]; read via
+    /// [`El::accessible_name`].
+    pub name: Option<String>,
+}
 
 /// Motion opt-ins, boxed together on [`El::motion`] so the common
 /// no-motion El pays one pointer.
@@ -821,6 +882,12 @@ impl El {
     /// The enter transition, if set via [`El::enter_transition`].
     pub fn enter_spec(&self) -> Option<&crate::anim::EnterTransition> {
         self.motion.as_deref().and_then(|m| m.enter.as_ref())
+    }
+
+    /// The accessible name, if set via [`name`][method@El::name]. See
+    /// [`Semantics::name`].
+    pub fn accessible_name(&self) -> Option<&str> {
+        self.semantics.as_deref().and_then(|s| s.name.as_deref())
     }
 
     /// The content-box inset: [`El::padding`] plus per-side border

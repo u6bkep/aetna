@@ -37,6 +37,12 @@ fn dump_node(n: &El, ui_state: &UiState, depth: usize, s: &mut String) {
         sw = n.width,
         sh = n.height,
     );
+    // Accessible name (`El::name`) — the only human-readable label an
+    // icon-only control has, so it goes right after the identity
+    // columns where a reviewer scanning ids will see it.
+    if let Some(name) = n.accessible_name() {
+        let _ = write!(s, " name={name:?}");
+    }
     let state = ui_state.node_state(&n.computed_id);
     if !matches!(state, InteractionState::Default) {
         let _ = write!(s, " state={state:?}");
@@ -158,5 +164,68 @@ fn short_path(p: &str) -> String {
         format!("{}/{}", parts[parts.len() - 2], parts[parts.len() - 1])
     } else {
         p.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::layout::layout;
+    use crate::widgets::button::icon_button;
+
+    /// The accessible name is the only human-readable label an
+    /// icon-only control has, so it has to reach the dump — that is
+    /// what makes a headless reviewer able to tell two icon buttons
+    /// apart.
+    #[test]
+    fn dump_surfaces_accessible_name() {
+        let mut tree = crate::row([
+            icon_button("settings").key("prefs").name("Settings"),
+            icon_button("bell").key("alerts").name("Notifications"),
+        ]);
+        let mut state = UiState::new();
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 100.0));
+        let dump = dump_tree(&tree, &state);
+
+        assert!(
+            dump.contains(r#"name="Settings""#),
+            "expected the accessible name in the dump, got:\n{dump}"
+        );
+        assert!(
+            dump.contains(r#"name="Notifications""#),
+            "expected the accessible name in the dump, got:\n{dump}"
+        );
+    }
+
+    /// Absent by default — the dump prints non-default state only, and
+    /// a `name=` column on every unnamed group would drown the signal.
+    #[test]
+    fn dump_omits_absent_name() {
+        let mut tree = crate::row([icon_button("settings").key("prefs")]);
+        let mut state = UiState::new();
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 100.0));
+        let dump = dump_tree(&tree, &state);
+        assert!(
+            !dump.contains("name="),
+            "unnamed nodes should print no name column, got:\n{dump}"
+        );
+    }
+
+    /// `.name()` is stored verbatim on the node — a modifier, not a
+    /// derived value.
+    #[test]
+    fn name_is_stored_on_the_el() {
+        let el = icon_button("move").key("move").name("Move");
+        assert_eq!(el.accessible_name(), Some("Move"));
+        // Last write wins, like every other modifier.
+        assert_eq!(el.name("Reposition").accessible_name(), Some("Reposition"));
+        // Independent of key and tooltip.
+        let el = icon_button("git-branch").key("branch").name("Switch branch");
+        assert_eq!(el.key.as_deref(), Some("branch"));
+        assert_eq!(el.accessible_name(), Some("Switch branch"));
+        assert_eq!(el.tooltip.as_deref(), None);
+        // No name, no allocation.
+        assert!(icon_button("bell").semantics.is_none());
+        assert_eq!(icon_button("bell").accessible_name(), None);
     }
 }

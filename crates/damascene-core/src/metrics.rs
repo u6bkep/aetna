@@ -1723,6 +1723,32 @@ mod tests {
         assert_eq!(kids[6].height, Size::Fixed(2.0), "progress bar");
     }
 
+    /// `icon_button` is what a compact strip is actually built from, and
+    /// its rustdoc now points agents at `.size(ComponentSize::Xxs)` for
+    /// the chrome rung. This is the claim that doc makes, measured end
+    /// to end through the metrics pass: a 22 px *square*, no horizontal
+    /// padding, still clearing a 30 px title strip with the focus ring.
+    #[test]
+    fn an_xxs_icon_button_stamps_a_22px_square() {
+        use crate::row;
+        use crate::widgets::button::icon_button;
+
+        let mut strip = row([icon_button("eye").ghost().size(ComponentSize::Xxs)]);
+        crate::Theme::default().apply_metrics(&mut strip);
+
+        let button = &strip.children[0];
+        assert_eq!(button.height, Size::Fixed(22.0));
+        assert_eq!(
+            button.width,
+            Size::Fixed(22.0),
+            "IconButton forces width == height"
+        );
+        assert_eq!(button.padding, Sides::xy(0.0, 0.0));
+        // That 22 px is what clears a 30 px strip — see
+        // `an_xxs_control_fits_a_thirty_pixel_title_strip` for the
+        // focus-ring arithmetic.
+    }
+
     #[test]
     fn xxs_is_the_ladders_floor_by_ord() {
         // `Ord` is derived, so a future rung inserted in the wrong place

@@ -596,8 +596,10 @@ fn check_unpadded_viewport_leaves<'a>(root: &'a El, r: &mut LintReport) {
 /// to be an `Axis::Overlay` container — `synthesize_tooltip` pushes the
 /// tooltip layer as a root child and `debug_assert`s the axis at
 /// hover-time. Check it statically: one finding, attributed to the
-/// root, naming the first tooltip carrier. Mirrors the runtime assert's
-/// message so both paths teach the same fix.
+/// root, naming the first tooltip carrier. The fix sentence is shared
+/// verbatim with the runtime assert in [`crate::tooltip`] so both paths
+/// teach the same words; the assert additionally names this finding,
+/// which would be redundant here (the report prints the kind already).
 fn check_tooltip_overlay_root(root: &El, r: &mut LintReport) {
     if root.axis == Axis::Overlay {
         return;

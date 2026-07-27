@@ -163,7 +163,7 @@ pub const ACTIVITY_BAR_BORDER: Color = Color::srgb_token("activityBar.border", 4
 /// `panel.background` — `#181818`.
 pub const PANEL_BG: Color = Color::srgb_token("panel.background", 24, 24, 24, 255);
 /// `panel.border` — `#2B2B2B`. The workbench's canonical hairline color.
-/// It backs the `border` palette slot in [`crate::theme::palette`], so
+/// It backs the `border` palette slot in [`crate::theme::dark_modern_palette`], so
 /// under [`crate::theme::dark_modern`] this and
 /// `damascene_core::tokens::BORDER` are one value; under
 /// [`crate::theme::theme`] the pointing reverses — this key is registered
@@ -220,7 +220,7 @@ pub const BUTTON_HOVER_BG: Color = Color::srgb_token("button.hoverBackground", 2
 /// `button.secondaryBackground` — `#00000000`, i.e. **fully
 /// transparent**. VS Code's secondary button is a ghost button at rest
 /// and only acquires a fill on hover; see [`BUTTON_SECONDARY_HOVER_BG`]
-/// and [`crate::theme::palette`] for why the palette's `secondary` slot
+/// and [`crate::theme::dark_modern_palette`] for why the palette's `secondary` slot
 /// takes the hover value instead of this one.
 pub const BUTTON_SECONDARY_BG: Color = Color::srgb_token("button.secondaryBackground", 0, 0, 0, 0);
 /// `button.secondaryForeground` — `#CCCCCC`.
@@ -309,7 +309,7 @@ pub const LIST_HOVER_BG: Color = Color::srgb_token("list.hoverBackground", 42, 4
 // Status colors.
 //
 // Dark Modern sets no `*Warning.foreground` key, so the warning role is
-// a judgment call — see `crate::theme::palette`.
+// a judgment call — see `crate::theme::dark_modern_palette`.
 // ---------------------------------------------------------------------
 
 /// `editorGutter.addedBackground` — `#2EA043`. The workbench's green.

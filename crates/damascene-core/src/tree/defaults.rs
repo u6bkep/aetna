@@ -19,6 +19,7 @@ impl Default for El {
             kind: Kind::Group,
             style_profile: StyleProfile::TextOnly,
             key: None,
+            semantics: None,
             block_pointer: false,
             hit_overflow: Sides::zero(),
             focusable: false,

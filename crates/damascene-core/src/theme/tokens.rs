@@ -112,6 +112,30 @@ pub const OVERLAY_SCRIM: Color = Color::srgb_token("overlay-scrim", 0, 0, 0, 204
 /// as a link, not an action accent — brighter on dark, darker on light.
 pub const LINK_FOREGROUND: Color = Color::srgb_token("link-foreground", 96, 165, 250, 255);
 
+/// Solid **instrument-chip** material — the fill behind a count, a
+/// flag, or a dense status pill packed into application chrome.
+/// Named for VS Code's `badge.background` (the key
+/// `damascene_workbench::tokens::BADGE_BG` transcribes), which is the
+/// corpus-dominant name for this material.
+///
+/// The defining property is that it is *notably* offset from every
+/// surface in the ramp — VS Code's `#616161` sits 2.9:1 above its
+/// `#181818` chrome — so a chip reads as an object sitting on the
+/// panel rather than as a slightly different patch of panel. Each
+/// stock palette spends its neutral ramp's solid step here (see
+/// [`crate::Palette`]); the stock dark value is zinc-500, 4.1:1 over
+/// `card`.
+///
+/// Deliberately **not** what the stock [`badge()`](crate::badge)
+/// widget paints: shadcn's `Badge` is a *tinted* status pill
+/// ([`crate::style::StyleProfile::Tinted`] over `info`/`success`/…)
+/// and stays that way. This slot is the solid chrome material —
+/// `damascene_workbench::chrome::chip` is its consumer.
+pub const BADGE: Color = Color::srgb_token("badge", 113, 113, 122, 255);
+/// Text/icon color on a solid [`BADGE`] fill — the ramp end that wins
+/// the contrast test against it (≥ 4.5:1 in every stock palette).
+pub const BADGE_FOREGROUND: Color = Color::srgb_token("badge-foreground", 250, 250, 250, 255);
+
 // ---- Spacing ----
 //
 // Spacing follows Tailwind's numeric scale so layout code reads like

@@ -14,9 +14,11 @@
 use damascene_core::prelude::*;
 use damascene_workbench::{chrome::*, theme, tokens as vs};
 
-#[test]
-fn shell_is_lint_clean() {
-    let mut root = column([
+/// Build the mirror of `examples/shell.rs`. Kept as a function so both
+/// the lint-clean guard and the tooltip-anatomy guard below assert
+/// against the same tree.
+fn shell() -> El {
+    let shell = column([
         row([text("t").caption()])
             .fill(vs::TITLE_BAR_ACTIVE_BG)
             .border_b()
@@ -79,12 +81,29 @@ fn shell_is_lint_clean() {
         .width(Size::Fill(1.0))
         .align(Align::Stretch),
         status_bar(
-            [text("main*").caption(), chip("6")],
+            [
+                text("main*")
+                    .caption()
+                    .key("scm")
+                    .tooltip("Branch: main (modified)"),
+                chip("6"),
+            ],
             [text("Ln 1, Col 1").caption()],
         ),
     ])
     .align(Align::Stretch)
     .fill(vs::EDITOR_BG);
+
+    // The example's root. A full-bleed shell that carries a tooltip
+    // still needs an `Axis::Overlay` root for the synthesized layer to
+    // mount on — `TooltipWithoutOverlayRoot` is a lint finding, so
+    // dropping this wrapper fails `shell_is_lint_clean` below.
+    overlays(shell, [])
+}
+
+#[test]
+fn shell_is_lint_clean() {
+    let mut root = shell();
 
     let b = damascene_core::bundle::artifact::render_bundle_themed(
         &mut root,
@@ -98,5 +117,26 @@ fn shell_is_lint_clean() {
         b.lint.findings.is_empty(),
         "{} findings",
         b.lint.findings.len()
+    );
+}
+
+/// `shell_is_lint_clean` proves the tooltip's two preconditions
+/// (`TooltipWithoutOverlayRoot`, `DeadTooltip`) — but it proves them
+/// *vacuously* if the tooltip ever disappears from this tree: a shell
+/// with no tooltip is trivially clean. This is the non-redundant half:
+/// assert the tree still carries one, so the guard above keeps
+/// exercising the overlay-root path it was extended to cover.
+#[test]
+fn shell_still_demonstrates_a_tooltip() {
+    fn find_tooltip(n: &El) -> Option<&El> {
+        if n.tooltip.is_some() {
+            return Some(n);
+        }
+        n.children.iter().find_map(find_tooltip)
+    }
+    assert!(
+        find_tooltip(&shell()).is_some(),
+        "the shell mirrors examples/shell.rs, which signposts the tooltip \
+         contract — without a tooltip, shell_is_lint_clean stops testing it"
     );
 }

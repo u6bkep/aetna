@@ -222,7 +222,8 @@ reading a single constructor.
 
 ### 2. Identity & a11y tags
 
-- `key(s)` — stable identity for hit-test routing and event delivery.
+- `key(s)` — stable identity for hit-test routing and event delivery. A *machine* name, never shown to a person.
+- `name(s)` — the **accessible name** (`aria-label`'s oracle): the short human-readable label for a control whose visible content is graphic rather than textual — `icon_button`, an icon-only toggle, an operable chart. A control that renders its own text needs none; the visible text *is* the accessible name, as on the web. Unlike `.tooltip(...)` it has no delay, no layer, and no overlay-root requirement, so the two pair rather than compete: `icon_button("terminal").key("run").name("Run").tooltip("Run (F5)")`. Damascene has no platform accessibility bridge yet — the name is carried on the node and printed in tree dumps as `name="…"`, which is what makes an icon-only control legible to headless review, and is the field such a bridge would read.
 - `at_loc(loc)` — source-mapped location, set automatically when your builder is `#[track_caller]`.
 - `Kind::Custom("widget-name")` — the recommended kind for any user widget. Surfaces the name in tree dumps and lint output without claiming any built-in behaviour.
 
@@ -256,9 +257,9 @@ Roles apply default size/line-height/weight/color so product code can say what a
 
 Use `icon("search")` for built-in vector icons, `icon_button("menu")` for the standard theme-sized icon-only button surface, and `button_with_icon("upload", "Publish")` for label+icon actions. The names — and the 24×24 stroke geometry — are lucide's own, so reach for the lucide name you already know. The built-in vocabulary covers:
 
-- **Chrome and navigation** — `menu`, `search`, `settings`, `more-horizontal`, `layout-dashboard`, `command`, `plus`, `x`, `check`, `chevron-up`/`-down`/`-left`/`-right`, `arrow-up`/`-down`/`-left`/`-right`, `external-link`, `log-out`, `lock`.
+- **Chrome and navigation** — `menu`, `search`, `settings`, `more-horizontal`, `layout-dashboard`, `command`, `plus`, `x`, `check`, `chevron-up`/`-down`/`-left`/`-right`, `arrow-up`/`-down`/`-left`/`-right`, `external-link`, `log-out`, `lock`, `eye`.
 - **Status and data** — `alert-circle`, `info`, `bell`, `activity`, `bar-chart`, `refresh-cw`, `users`, `wifi`, `globe`.
-- **Files and source control** — `file-text`, `folder`, `upload`, `download`, `paperclip`, `git-branch`, `git-commit`, `code`, `terminal`, `keyboard`.
+- **Files and source control** — `file-text`, `folder`, `upload`, `download`, `paperclip`, `git-branch`, `git-commit`, `code`, `terminal`, `keyboard`, `box`.
 - **Audio, video, and messaging** — `mic`, `mic-off`, `headphones`, `headphone-off`, `volume-2`, `volume-x`, `camera`, `screen-share`, `message-square`, `send`, `smile`.
 - **Viewport and object manipulation** — `move`, `rotate-cw`, `rotate-ccw`, `scaling`, `flip-horizontal`, `ruler`, `contrast`.
 
@@ -487,14 +488,41 @@ button("Save")
     .tooltip("Save the current document (Ctrl+S)")
 ```
 
+Two preconditions, both caught by the bundle lint rather than left
+to a runtime surprise:
+
+- **The carrier needs its own `.key(...)`.** Only keyed nodes are
+  hit-test targets (§ `hit_test`), so an unkeyed leaf with
+  `.tooltip()` never fires — hover skips past it to the nearest keyed
+  ancestor, which has a different tooltip. Lint: `DeadTooltip`. For
+  info-only chrome inside a row, a synthetic key (`"row:3.sha"`) is
+  the idiom; its only job is to make the hover land. Focusability is
+  *not* required.
+- **`App::build`'s root must be an `Axis::Overlay` container.** The
+  synthesized layer mounts as a sibling of the root, so a plain
+  `column`/`row` root has nowhere to put it and the runtime
+  `debug_assert`s on first hover. One line fixes it:
+
+  ```rust
+  overlays(root, [])   // `root` = your existing build() return value
+  ```
+
+  `page([...])` and any `stack(...)` root already satisfy this. Lint:
+  `TooltipWithoutOverlayRoot`. Damascene does not auto-wrap the root —
+  it belongs to the app, and silently re-parenting it would reorder
+  every app-composed overlay stack. A full-bleed shell with no
+  overlay root is not a reason to drop tooltips from icon-only
+  chrome: add the wrapper (it is layout-neutral), and reach for
+  `.name("…")` as well, which labels a graphic control with no root
+  requirement at all.
+
 This is the only floating layer the library adds on the app's
 behalf. Modals and popovers stay app-owned (rendered explicitly
 from app state at the El root) — see `widgets/popover.rs` for the
 "no portal hoist" rationale. Tooltips fit a different rule because
-they are a pure read-out of hover state; the trigger doesn't need to
-be keyed or focusable, and the synthesized layer is hit-test
-transparent so it doesn't interfere with continued hover on the
-trigger underneath.
+they are a pure read-out of hover state, and the synthesized layer is
+hit-test transparent so it doesn't interfere with continued hover on
+the trigger underneath.
 
 ### 7. Hotkeys & key delivery
 

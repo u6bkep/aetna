@@ -27,10 +27,11 @@
 //! the palette moves the whole key set at once.
 //!
 //! Dark Modern's values survive verbatim as [`dark_modern`], built from
-//! [`palette`] + [`register_workbench_tokens`]. It is the calibrated
-//! reference (`references/vscode-calibration/`) and the demonstration
-//! that the vocabulary rethemes — `examples/slicer_match.rs` reskins the
-//! whole crate in ~30 `with_token` lines.
+//! [`dark_modern_palette`] + [`register_workbench_tokens`]. It is the
+//! calibrated reference (`references/vscode-calibration/`) and the
+//! demonstration that the vocabulary rethemes —
+//! `examples/slicer_match.rs` reskins the whole crate in ~30
+//! `with_token` lines.
 //!
 //! Ratified 2026-07-27; the evidence and the rejected
 //! Dark-Modern-as-default position are in `docs/WORKBENCH_VISION.md`,
@@ -148,6 +149,8 @@ pub const TYPE_SCALE: f32 = 13.0 / 14.0;
 /// | `info` | `editorGutter.modifiedBackground` | `#0078D4` |
 /// | `info-foreground` | `button.foreground` | `#FFFFFF` |
 /// | `link-foreground` | `textLink.foreground` | `#4daafc` |
+/// | `badge` | `badge.background` | `#616161` |
+/// | `badge-foreground` | `badge.foreground` | `#F8F8F8` |
 /// | `selection-bg` | `list.activeSelectionBackground` | `#04395E` |
 /// | `selection-bg-unfocused` | `editor.inactiveSelectionBackground` | `#3A3D41` |
 ///
@@ -227,6 +230,9 @@ pub fn dark_modern_palette() -> Palette {
 
         link_foreground: vs::TEXT_LINK_FG,
 
+        badge: vs::BADGE_BG,
+        badge_foreground: vs::BADGE_FG,
+
         selection_bg: vs::LIST_ACTIVE_SELECTION_BG,
         selection_bg_unfocused: vs::EDITOR_INACTIVE_SELECTION_BG,
 
@@ -237,9 +243,10 @@ pub fn dark_modern_palette() -> Palette {
 
 /// Register the workbench key set on a palette's extra namespace.
 ///
-/// Split out from [`palette`] so a downstream *theme* of the workbench
-/// vocabulary — eutectic's ui-oracle values, say — can start from its own
-/// slot mapping and still resolve `sideBar.background` and friends.
+/// Split out from [`dark_modern_palette`] so a downstream *theme* of
+/// the workbench vocabulary — eutectic's ui-oracle values, say — can
+/// start from its own slot mapping and still resolve
+/// `sideBar.background` and friends.
 ///
 /// Keys whose value is a pure transcription of a slot are registered
 /// anyway: the point of the namespace is that
@@ -445,8 +452,10 @@ pub fn slate_palette() -> Palette {
 /// | `descriptionForeground`, `input.placeholderForeground`, `statusBarItem.prominentBackground` (a wash), and every dimmed label (`sideBarTitle`, `sideBarSectionHeader`, `statusBar`, `tab.inactive*`, `activityBar.inactive*`, `panelTitle.inactive*`) | `muted-foreground` |
 /// | `button.background`, `progressBar.background`, `tab.activeBorderTop`, `statusBarItem.remoteBackground`, `menu.selectionBackground` | `primary` |
 /// | `button.foreground`, `statusBarItem.remoteForeground` | `primary-foreground` |
-/// | `button.secondaryBackground`, `button.secondaryHoverBackground`, `badge.background` | `secondary` |
-/// | `button.secondaryForeground`, `badge.foreground` | `secondary-foreground` |
+/// | `button.secondaryBackground`, `button.secondaryHoverBackground` | `secondary` |
+/// | `button.secondaryForeground` | `secondary-foreground` |
+/// | `badge.background` | `badge` |
+/// | `badge.foreground` | `badge-foreground` |
 /// | `list.hoverBackground`, `editor.inactiveSelectionBackground`, `list.inactiveSelectionBackground` | `muted` |
 /// | `list.activeSelectionBackground` | `accent` |
 /// | `list.activeSelectionForeground` | `accent-foreground` |
@@ -518,6 +527,20 @@ pub fn slate_palette() -> Palette {
 ///   own value is a whisper — and `button.secondaryBackground`
 ///   (`#00000000`) stays invisible on `secondary`, both as documented in
 ///   [`crate::tokens`].
+/// - **`badge.background` is its own slot now, not `secondary`.** It
+///   was `secondary` through 2026-07-27, and the acceptance round
+///   caught what that costs: `secondary` is a *near-surface* value
+///   (`#212225` against a `#18191B` card), so a
+///   [`crate::chrome::chip`] on a [`crate::chrome::pane_header`]
+///   measured **1.11:1** — the chip was invisible and only its label
+///   read. VS Code's own `badge.background` is the opposite kind of
+///   value: `#616161` stands 2.9:1 *above* its `#181818` chrome,
+///   because a count chip is an object on the panel. Core now carries a
+///   dedicated `badge` slot for exactly that material (the stock slate
+///   ramp spends slate-9 on it, 3.4:1 over `card`), and this key points
+///   at it. `damascene_core::tokens::BADGE` and `vs::BADGE_BG` are
+///   consequently one value under both themes, the same way
+///   `tokens::BORDER` and `vs::PANEL_BORDER` are.
 /// - **Dimmed labels are a judgment call per key.** Dark Modern paints
 ///   `sideBarTitle.foreground`, `sideBarSectionHeader.foreground` and
 ///   `statusBar.foreground` at full `#CCCCCC`; here they take
@@ -552,6 +575,8 @@ pub fn register_workbench_tokens_from_palette(p: Palette) -> Palette {
     let warning = p.warning;
     let info = p.info;
     let link_foreground = p.link_foreground;
+    let badge = p.badge;
+    let badge_foreground = p.badge_foreground;
     // The input trough, mirroring `SurfaceRole::Input` verbatim —
     // `palette.resolve(tokens::MUTED).darken(0.08)` — so the key and the
     // rendered control cannot drift.
@@ -636,8 +661,8 @@ pub fn register_workbench_tokens_from_palette(p: Palette) -> Palette {
         .with_token("menu.selectionBackground", primary)
         .with_token("pickerGroup.border", border)
         // Badge and list
-        .with_token("badge.background", secondary)
-        .with_token("badge.foreground", secondary_foreground)
+        .with_token("badge.background", badge)
+        .with_token("badge.foreground", badge_foreground)
         .with_token("list.activeSelectionBackground", accent)
         .with_token("list.activeSelectionForeground", accent_foreground)
         .with_token("list.inactiveSelectionBackground", muted)
@@ -727,8 +752,9 @@ pub fn theme() -> Theme {
     profile(slate_palette())
 }
 
-/// The workbench profile painted in **VS Code Dark Modern** — [`palette`]
-/// and [`register_workbench_tokens`], i.e. every key on its calibrated
+/// The workbench profile painted in **VS Code Dark Modern** —
+/// [`dark_modern_palette`] and [`register_workbench_tokens`], i.e. every
+/// key on its calibrated
 /// upstream value (`references/vscode-calibration/`).
 ///
 /// This was the crate's `theme()` through 2026-07-27 and is byte-identical
@@ -1048,7 +1074,8 @@ mod tests {
         same("button.foreground", stock.primary_foreground);
         same("button.secondaryBackground", stock.secondary);
         same("button.secondaryForeground", stock.secondary_foreground);
-        same("badge.background", stock.secondary);
+        same("badge.background", stock.badge);
+        same("badge.foreground", stock.badge_foreground);
         same("focusBorder", stock.ring);
         same("descriptionForeground", stock.muted_foreground);
         same("errorForeground", stock.destructive);
@@ -1118,6 +1145,8 @@ mod tests {
             stock.warning,
             stock.info,
             stock.link_foreground,
+            stock.badge,
+            stock.badge_foreground,
         ]
         .iter()
         .map(|c| u8s(*c))
@@ -1154,6 +1183,58 @@ mod tests {
         assert_eq!(
             u8s(sand.lookup("button.background").unwrap()),
             u8s(Palette::radix_sand_amber_dark().primary)
+        );
+    }
+
+    #[test]
+    fn the_badge_slot_is_filled_deliberately_in_both_palettes() {
+        // Dark Modern transcribes VS Code's own key; slate takes the
+        // stock ramp's chip step. Neither may fall back to the
+        // `..Palette::damascene_dark()` zinc value, which is a
+        // different ramp's grey.
+        let dm = dark_modern_palette();
+        assert_eq!(rgb(dm.badge), rgb(vs::BADGE_BG));
+        assert_eq!(rgb(dm.badge_foreground), rgb(vs::BADGE_FG));
+
+        let slate = slate_palette();
+        assert_eq!(
+            rgb(slate.badge),
+            rgb(Palette::radix_slate_blue_dark().badge)
+        );
+        assert_eq!(u8s(slate.badge), [0x69, 0x6E, 0x77]);
+        assert_ne!(
+            rgb(slate.badge),
+            rgb(Palette::damascene_dark().badge),
+            "the slate palette must not inherit zinc's chip step"
+        );
+    }
+
+    #[test]
+    fn the_stock_badge_token_and_the_vs_code_key_are_one_value() {
+        // `chrome::chip` paints the *stock* token so a downstream theme
+        // of this vocabulary moves it; the VS Code key names the same
+        // material. Exactly the `tokens::BORDER` / `panel.border`
+        // relationship, and it must hold under both palettes.
+        for p in [slate_palette(), dark_modern_palette()] {
+            let stock = p.resolve(damascene_core::tokens::BADGE);
+            let key = p.lookup("badge.background").expect("key is registered");
+            assert_eq!(u8s(stock), u8s(key));
+
+            let stock_fg = p.resolve(damascene_core::tokens::BADGE_FOREGROUND);
+            let key_fg = p.lookup("badge.foreground").expect("key is registered");
+            assert_eq!(u8s(stock_fg), u8s(key_fg));
+        }
+    }
+
+    #[test]
+    fn the_badge_key_no_longer_borrows_the_secondary_slot() {
+        // The acceptance complaint, as a tripwire: `secondary` is a
+        // near-surface value, and pointing the chip material at it is
+        // what made chips unreadable on a pane header.
+        let p = slate_palette();
+        assert_ne!(
+            u8s(p.lookup("badge.background").unwrap()),
+            u8s(Palette::radix_slate_blue_dark().secondary),
         );
     }
 

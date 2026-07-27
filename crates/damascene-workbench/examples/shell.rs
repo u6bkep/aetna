@@ -18,6 +18,8 @@
 //!   it; `+` opens a new one.
 //! - Tab through the controls — the focus ring is `focusBorder`
 //!   (`#0078D4`), VS Code's blue, because it backs the `ring` slot.
+//! - Rest the pointer on `main*` in the status bar. That tooltip is why
+//!   `build` ends in `overlays(shell, [])` — see the comment there.
 //!
 //! Run: `cargo run -p damascene-workbench --example shell`
 
@@ -178,11 +180,22 @@ impl Shell {
 
 impl App for Shell {
     fn build(&self, _cx: &BuildCx) -> El {
-        // A bare column root, not `page()`: a workbench shell is
-        // full-bleed by definition — window padding would float the
-        // whole instrument on a margin, which is signal 4 of the
-        // diagnosis this crate exists to invert.
-        column([
+        // A bare column, not `page()`: a workbench shell is full-bleed
+        // by definition — window padding would float the whole
+        // instrument on a margin, which is signal 4 of the diagnosis
+        // this crate exists to invert.
+        //
+        // Full-bleed does not mean overlay-free, though. The shell
+        // carries a tooltip, and the runtime pushes the tooltip layer
+        // in as the root's last child — which floats only if the root
+        // stacks its children. So the root has to be an
+        // `Axis::Overlay` container; under this bare column the layer
+        // would become a third row and squash the status bar.
+        // `overlays(shell, [])` at the bottom is the whole cost, and it
+        // is layout-neutral: `shell` still fills the viewport. Debug
+        // builds assert on the first hover, and the bundle lint reports
+        // `TooltipWithoutOverlayRoot` before that ever happens.
+        let shell = column([
             self.title_strip(),
             row([self.side_bar(), self.editor_group()])
                 .height(Size::Fill(1.0))
@@ -190,7 +203,14 @@ impl App for Shell {
                 .align(Align::Stretch),
             status_bar(
                 [
-                    text("main*").caption(),
+                    // The one tooltip in this shell. It needs a
+                    // `.key(...)` on this exact node — hit-test only
+                    // returns keyed nodes, so an unkeyed tooltip is
+                    // silently dead (lint: `DeadTooltip`).
+                    text("main*")
+                        .caption()
+                        .key("scm")
+                        .tooltip("Branch: main (modified)"),
                     text("0 problems").caption(),
                     chip(format!("{}", self.files.len())),
                 ],
@@ -202,7 +222,9 @@ impl App for Shell {
             ),
         ])
         .align(Align::Stretch)
-        .fill(vs::EDITOR_BG)
+        .fill(vs::EDITOR_BG);
+
+        overlays(shell, [])
     }
 
     fn on_event(&mut self, event: UiEvent, _cx: &EventCx) {

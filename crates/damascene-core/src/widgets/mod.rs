@@ -40,12 +40,13 @@
 //! - [`radio`] — `radio_group(...)` + `radio_item(...)` + `RadioAction`
 //! - [`toggle`] — single or grouped toggle buttons (think bold/italic toolbar)
 //! - [`slider`] — controlled value bar; `slider(key, value)` + `slider::apply_event` (folds pointer + key)
+//! - [`swatch`] — pickable color well for an accent picker; `color_swatch(key, color, selected)`, ringed outside when selected
 //! - [`field`] — labelled control for settings rows and inspector panes; `field("Label", control)`, `field_with(label, control, FieldOpts::default().description("...").horizontal())`, stacked in `field_group([...])` / `field_set("Legend", [...])` with `field_separator()`
 //! - [`form`] — `form([...])` + `form_item([form_label, form_control, form_description, form_message])` + `field_row(label, control)` + `form_section(...)`
 //!
 //! **Feedback & status**
 //! - [`alert`] — callouts; `alert([alert_title, alert_description]).warning() / .info() / .destructive()`
-//! - [`badge`] — status pill; `badge("Online").success() / .warning() / .destructive() / .info() / .muted() / .outline()`
+//! - [`badge`] — status pill; `badge("Online").success() / .warning() / .destructive() / .info() / .muted() / .outline()`; textless sibling `status_dot(tokens::SUCCESS)` for presence/state dots beside a label
 //! - [`progress`] — non-interactive value bar; `progress(value)`, also `progress_indeterminate()`
 //! - [`meter`] — instrumentation gauge (the web platform's `<meter>`, not shadcn); `meter(0.62)`, `meter_with(v, MeterOpts::default().low(0.6).high(0.85))`
 //! - [`spinner`] — loading indicator
@@ -118,6 +119,7 @@ pub mod sidebar;
 pub mod skeleton;
 pub mod slider;
 pub mod spinner;
+pub mod swatch;
 pub mod switch;
 pub mod table;
 pub mod tabs;

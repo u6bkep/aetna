@@ -39,6 +39,19 @@
 //! palette) — the crate contributes values and chrome recipes, no
 //! mechanisms.
 //!
+//! ## The strips go one rung denser than the app baseline
+//!
+//! 28px `Xs` is the *app* density — forms, dialogs, editor content. It
+//! does not fit the strips that frame them: a 22px status bar or pane
+//! header, or a 30px title bar, which has to hold the control *and* its
+//! focus ring. Core's ladder has a rung below shadcn's floor for exactly
+//! this, [`damascene_core::metrics::ComponentSize::Xxs`] — a 22px
+//! control — so a button or `icon_button` in a strip is
+//! `.size(ComponentSize::Xxs)`, never a hardcoded `.height(...)`. Reach
+//! for it per element, or per role via `ThemeMetrics::with_button_size`;
+//! it is deliberately *not* this crate's theme-wide default, because an
+//! app whose forms are all 22px reads as broken rather than dense.
+//!
 //! # Why VS Code specifically — the key vocabulary, not the colors
 //!
 //! Damascene's premise is vocabulary parity with the LLM training

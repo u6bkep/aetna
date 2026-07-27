@@ -24,6 +24,8 @@ pub enum IconName {
     BarChart,
     /// A notification bell.
     Bell,
+    /// An isometric closed carton; packages, builds, artifacts, 3D objects.
+    Box,
     /// A camera body with a lens; photo capture / snapshot actions.
     Camera,
     /// A checkmark; the stock checkbox's checked indicator.
@@ -46,6 +48,8 @@ pub enum IconName {
     Download,
     /// A box with an arrow leaving it; opens a link outside the app.
     ExternalLink,
+    /// An eye with a pupil; visibility toggles, preview, "show".
+    Eye,
     /// A text-document outline.
     FileText,
     /// Two brackets around a dashed axis; mirror across the vertical axis.
@@ -138,6 +142,7 @@ impl IconName {
             "arrow-up" => Some(Self::ArrowUp),
             "bar-chart" | "chart-bar" => Some(Self::BarChart),
             "bell" => Some(Self::Bell),
+            "box" => Some(Self::Box),
             "camera" => Some(Self::Camera),
             "check" => Some(Self::Check),
             "chevron-down" => Some(Self::ChevronDown),
@@ -149,6 +154,7 @@ impl IconName {
             "contrast" => Some(Self::Contrast),
             "download" => Some(Self::Download),
             "external-link" => Some(Self::ExternalLink),
+            "eye" => Some(Self::Eye),
             "file-text" | "file" => Some(Self::FileText),
             "flip-horizontal" => Some(Self::FlipHorizontal),
             "folder" => Some(Self::Folder),
@@ -203,6 +209,7 @@ impl IconName {
             Self::ArrowUp => "arrow-up",
             Self::BarChart => "bar-chart",
             Self::Bell => "bell",
+            Self::Box => "box",
             Self::Camera => "camera",
             Self::Check => "check",
             Self::ChevronDown => "chevron-down",
@@ -214,6 +221,7 @@ impl IconName {
             Self::Contrast => "contrast",
             Self::Download => "download",
             Self::ExternalLink => "external-link",
+            Self::Eye => "eye",
             Self::FileText => "file-text",
             Self::FlipHorizontal => "flip-horizontal",
             Self::Folder => "folder",
@@ -267,6 +275,7 @@ impl IconName {
             Self::ArrowUp => "↑",
             Self::BarChart => "▮",
             Self::Bell => "•",
+            Self::Box => "⬡",
             Self::Camera => "▣",
             Self::Check => "✓",
             Self::ChevronDown => "⌄",
@@ -278,6 +287,7 @@ impl IconName {
             Self::Contrast => "◐",
             Self::Download => "↓",
             Self::ExternalLink => "↗",
+            Self::Eye => "◎",
             Self::FileText => "□",
             Self::FlipHorizontal => "⇄",
             Self::Folder => "▱",

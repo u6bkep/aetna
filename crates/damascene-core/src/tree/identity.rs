@@ -54,6 +54,70 @@ impl El {
         self
     }
 
+    /// Give this node an **accessible name** — the short human-readable
+    /// label for a control whose visible content is graphic rather than
+    /// textual.
+    ///
+    /// ```ignore
+    /// icon_button("move").key("move").name("Move")
+    /// icon_button("git-branch").key("branch").name("Switch branch")
+    /// ```
+    ///
+    /// # Oracle note (`docs/NAMING_ORACLE.md`)
+    ///
+    /// The *concept* is the web platform's **accessible name** — what
+    /// `aria-label` supplies on a control and `alt` on an image — so
+    /// it sits under the registry's web-platform row. The *spelling*
+    /// deliberately diverges: HTML's own `name` attribute is a
+    /// form-submission key, which is what damascene calls
+    /// [`key`][method@Self::key], and no platform attribute is named
+    /// for the concept itself. `name` was chosen over `aria_label`
+    /// because it is what agents reach for first (measured) and
+    /// because damascene has no ARIA layer to be labelling. The cost
+    /// is this collision with HTML's `name`; the "Not a key, not a
+    /// tooltip" section below is the mitigation, alongside the
+    /// `aria_label` / `alt` doc aliases.
+    ///
+    /// Reach for it on **icon-only buttons and graphic controls**:
+    /// `icon_button`, an icon-only toggle, a chart or canvas the user
+    /// can operate. A control that already renders its own label
+    /// (`button("Save")`) needs no name — the visible text *is* the
+    /// accessible name, exactly as on the web.
+    ///
+    /// # Not a key, not a tooltip
+    ///
+    /// - [`key`][method@Self::key] is a *machine* identity: it feeds
+    ///   `computed_id`, is never shown to a person, and is usually a
+    ///   slug (`"row:3.close"`). A name is prose (`"Close tab"`).
+    /// - `.tooltip(...)` is a *hover affordance*: it has a delay, it
+    ///   synthesizes a floating layer, and it requires an overlay root
+    ///   (see [`tooltip`][method@Self::tooltip]). A name has no visual or
+    ///   timing behavior whatsoever and works on any root.
+    ///
+    /// The two pair naturally on icon-only chrome — the tooltip shows
+    /// the label to a pointer user, the name states it unconditionally:
+    ///
+    /// ```ignore
+    /// icon_button("terminal").key("run").name("Run").tooltip("Run (F5)")
+    /// ```
+    ///
+    /// # What consumes it today
+    ///
+    /// The name is stored on the node (in the boxed
+    /// [`Semantics`](crate::tree::Semantics) group, read back via
+    /// [`El::accessible_name`]) and printed by the inspection dump
+    /// ([`crate::bundle::inspect::dump_tree`], and so the
+    /// `{name}.tree.txt` bundle artifact) as `name="…"`. Damascene has
+    /// no platform accessibility bridge yet — this is the field such a
+    /// bridge would read, and it is what makes an icon-only control
+    /// legible to headless review in the meantime.
+    #[doc(alias = "aria_label")]
+    #[doc(alias = "alt")]
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.semantics.get_or_insert_with(Default::default).name = Some(name.into());
+        self
+    }
+
     /// Make this node opaque to pointer hit-testing: pointer events
     /// over its rect stop here instead of falling through to whatever
     /// is painted beneath (scrims, modal surfaces).
