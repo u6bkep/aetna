@@ -115,10 +115,14 @@ pub use crate::widgets::editor_tabs::{
     self, ActiveTabStyle, CloseVisibility, EditorTabsAction, EditorTabsConfig, editor_tab,
     editor_tab_add_key, editor_tab_close_key, editor_tab_select_key, editor_tabs, editor_tabs_with,
 };
+pub use crate::widgets::field::{
+    self, FieldOpts, field, field_group, field_separator, field_set, field_with,
+};
 pub use crate::widgets::form::{
     field_row, form, form_control, form_description, form_item, form_label, form_message,
     form_section,
 };
+pub use crate::widgets::input_group::{self, input_group, input_group_addon, input_group_text};
 pub use crate::widgets::input_otp::{self, input_otp};
 pub use crate::widgets::item::{
     self, item, item_actions, item_content, item_description, item_footer, item_group, item_header,
