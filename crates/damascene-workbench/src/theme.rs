@@ -114,7 +114,7 @@ pub const TYPE_SCALE: f32 = 13.0 / 14.0;
 /// This is [`dark_modern`]'s palette — the *variant*, not the crate
 /// default. [`theme`] paints from [`slate_palette`] (ratified
 /// 2026-07-27; see the module docs). It keeps its original name because
-/// downstream rethemes spread it (`..theme::palette()`), and because
+/// downstream rethemes spread it (`..theme::dark_modern_palette()`), and because
 /// everything below it is still true of Dark Modern.
 ///
 /// # The slot mapping
@@ -187,7 +187,7 @@ pub const TYPE_SCALE: f32 = 13.0 / 14.0;
 /// chain sets a scrim or scrollbar key, and the calibration reference
 /// deliberately vendors only the theme files — inventing values here
 /// would be recalled color, which the calibration plan forbids.
-pub fn palette() -> Palette {
+pub fn dark_modern_palette() -> Palette {
     let p = Palette {
         background: vs::EDITOR_BG,
         foreground: vs::FOREGROUND,
@@ -740,7 +740,7 @@ pub fn theme() -> Theme {
 /// darker than `editor.background`), where [`theme`] raises chrome above
 /// the content well.
 pub fn dark_modern() -> Theme {
-    profile(palette())
+    profile(dark_modern_palette())
 }
 
 #[cfg(test)]
@@ -756,14 +756,14 @@ mod tests {
         // The load-bearing row: this is what converts floating cards
         // into layered panels. If it ever collapses back to
         // `background`, the crate's reason to exist is gone.
-        let p = palette();
+        let p = dark_modern_palette();
         assert_ne!(rgb(p.card), rgb(p.background));
         assert_eq!(rgb(p.card), rgb(vs::SIDE_BAR_BG));
     }
 
     #[test]
     fn docked_surfaces_sink_and_floating_surfaces_rise() {
-        let p = palette();
+        let p = dark_modern_palette();
         assert!(p.card.r < p.background.r, "side bar sinks below the editor");
         assert!(
             p.popover.r > p.background.r,
@@ -775,7 +775,7 @@ mod tests {
     fn muted_accent_border_and_input_are_not_collapsed() {
         // The stock dark palette maps secondary/muted/accent/border/input
         // onto one value; VS Code distinguishes all of them.
-        let p = palette();
+        let p = dark_modern_palette();
         assert_ne!(rgb(p.accent), rgb(p.muted));
         assert_ne!(rgb(p.border), rgb(p.input));
         assert_ne!(rgb(p.secondary), rgb(p.muted));
@@ -785,7 +785,7 @@ mod tests {
     fn secondary_is_not_the_transparent_literal() {
         // `button.secondaryBackground` is `#00000000`. Transcribing it
         // would make every secondary surface invisible.
-        let p = palette();
+        let p = dark_modern_palette();
         assert!(p.secondary.a > 0.0);
         assert_eq!(rgb(p.secondary), rgb(vs::BUTTON_SECONDARY_HOVER_BG));
     }
@@ -795,7 +795,7 @@ mod tests {
         // The whole point of the open token namespace: a VS Code key
         // minted with `srgb_token` must come back from `lookup`, not
         // fall through to its baked literal.
-        let p = palette();
+        let p = dark_modern_palette();
         for key in [
             "sideBar.background",
             "statusBar.background",
@@ -828,7 +828,7 @@ mod tests {
         // `tokens` whose key is registered must round-trip to its own
         // value. `foreground` is the documented exception — a stock
         // shadcn name that `lookup` shadows before reaching the map.
-        let p = palette();
+        let p = dark_modern_palette();
         for c in crate::tokens::ALL {
             let key = c.token.expect("workbench tokens carry their key");
             let resolved = p.lookup(key).unwrap_or_else(|| panic!("{key} unresolved"));
@@ -851,7 +851,7 @@ mod tests {
         // Chrome that paints `damascene_core::tokens::BORDER` — every
         // stock widget, and `chrome::hairline` — must land on VS Code's
         // hairline color under this theme.
-        let p = palette();
+        let p = dark_modern_palette();
         assert_eq!(
             rgb(p.lookup("border").unwrap()),
             rgb(vs::PANEL_BORDER),
@@ -933,7 +933,7 @@ mod tests {
     #[test]
     fn the_same_keys_resolve_to_slate_by_default_and_dark_modern_in_the_variant() {
         let slate = slate_palette();
-        let dm = palette();
+        let dm = dark_modern_palette();
 
         // Chrome ground: the value round-2 measured, and the value VS
         // Code ships.
@@ -976,7 +976,7 @@ mod tests {
             "chrome rises above content in the slate default"
         );
         assert!(
-            palette().card.r < palette().background.r,
+            dark_modern_palette().card.r < dark_modern_palette().background.r,
             "Dark Modern keeps its sunken chrome"
         );
         assert_ne!(rgb(slate.card), rgb(slate.background));
