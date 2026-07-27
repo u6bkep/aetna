@@ -303,6 +303,12 @@ impl El {
     }
     /// Extra-compact sizing: text leaves drop to [`tokens::TEXT_XS`];
     /// components select their extra-small (`Xs`) size variant.
+    ///
+    /// The end of this ladder: there is no `.xxsmall()`. The text branch
+    /// has no rung below [`tokens::TEXT_XS`], and
+    /// [`ComponentSize::Xxs`] is a *chrome* rung rather than a general
+    /// step down — ask for it explicitly with
+    /// `.size(ComponentSize::Xxs)` on the bars that want it.
     pub fn xsmall(mut self) -> Self {
         if text_only_leaf(&self) {
             apply_type_token(&mut self, tokens::TEXT_XS);

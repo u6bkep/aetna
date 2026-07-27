@@ -97,13 +97,15 @@ where
 ///
 /// # Badge-adjacent, deliberately not a badge
 ///
-/// The stock `badge()` is the right shape but the wrong density: its
-/// smallest rung is 18px with 6px of horizontal padding and a 6px
-/// radius, and it is a tinted outline (`StyleProfile::Tinted`) rather
-/// than a solid fill. A chip is 16px, 4px padding, solid
-/// [`vs::BADGE_BG`], and square-ish. Reach for `badge()` when you want
-/// shadcn's status pill; reach for `chip` for counts and flags packed
-/// into chrome.
+/// The stock `badge()` is the right shape but the wrong *material*: it
+/// is a tinted outline (`StyleProfile::Tinted`) on a 6px radius, where
+/// chrome wants a solid [`vs::BADGE_BG`] fill on [`vs::RADIUS`].
+/// Density is no longer the difference — the badge ladder's floor rung
+/// (`ComponentSize::Xxs`, the chrome rung) is 16px with 4px of
+/// horizontal padding, exactly this chip's geometry; a badge's default
+/// rung is still 20px. Reach for `badge()` when you want shadcn's
+/// status pill; reach for `chip` for counts and flags packed into
+/// chrome.
 ///
 /// The radius is set with `.radius()` rather than left to the theme, so
 /// it is *explicit* and the theme's radius scale leaves it alone. That
@@ -227,8 +229,8 @@ mod tests {
 
         // Measured against the real badge rather than against recalled
         // numbers: shorter than the badge's own default height (the
-        // badge metrics ladder only goes up from there — 18/20/24/28)
-        // and squarer than its 6px corner.
+        // badge metrics ladder runs 16/18/20/24/28, default 20) and
+        // squarer than its 6px corner.
         let b = badge("3");
         let fixed = |s: Size| match s {
             Size::Fixed(v) => v,

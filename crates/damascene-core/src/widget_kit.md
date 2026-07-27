@@ -79,14 +79,18 @@ size on the size-driven widgets (button / tab / input / badge / …);
 container padding is per-constructor and overridden at the call site
 (see §1.2.1). There is no global density knob.
 
-Stock controls have a t-shirt size that matches shadcn's `size` prop
-1:1: `ComponentSize::{Xs, Sm, Md, Lg}`. Local modifiers:
+Stock controls have a t-shirt size: `ComponentSize::{Xs, Sm, Md, Lg}`
+match shadcn's `size` prop 1:1, and `ComponentSize::Xxs` extends the
+ladder one rung below shadcn — 22px controls for dense chrome strips
+(title bars, status bars, pane headers, toolbars), where an `Xs` 28px
+control does not fit. Local modifiers:
 
 ```rust
 button("Preview").small()
 button("Publish").large()
 text_input("search", &query, &selection).size(ComponentSize::Sm)
 progress(value).small()
+icon_button("close").size(ComponentSize::Xxs)   // 22px: fits a title bar
 ```
 
 Damascene's built-in default starts at `ComponentSize::Sm` so desktop apps
