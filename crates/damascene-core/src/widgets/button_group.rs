@@ -52,6 +52,34 @@
 //! Each boundary therefore carries exactly one hairline, whatever mix
 //! of variants the author passes.
 //!
+//! # Seam color: the seam follows the frame
+//!
+//! The divider is not a constant. It is painted in the group's own
+//! **effective frame stroke** — whatever `el.stroke` the group carries
+//! when the seams are resolved, falling back to `tokens::BORDER` for a
+//! group with no frame of its own (`button_group`, which is chromeless
+//! by design). So `toggle_group(...)` seams the trough in
+//! `tokens::BORDER` exactly as before, and
+//!
+//! ```ignore
+//! button_group(segments).fill(TROUGH).stroke(INPUT_BORDER)
+//! ```
+//!
+//! seams in `INPUT_BORDER` — one authored color for the frame *and* the
+//! dividers, which is how every design in the reference corpus draws a
+//! bordered segmented control. The re-point happens inside
+//! [`El::stroke`](crate::El::stroke), so the author's chained
+//! `.stroke(...)` reaches seams that were resolved when the group was
+//! built.
+//!
+//! The suppression rule follows from the same color: a neighbour's own
+//! edge stands in for the seam only when it would *coincide* with it —
+//! same pixels **and** same color. A `.current()` segment strokes
+//! `tokens::BORDER`, so it swallows the seam of a default trough but
+//! not the seam of a trough the author stroked some other color; there
+//! the divider is drawn and the segment's own outline reads as a
+//! separate selection edge, which is what the references show.
+//!
 //! # Dogfood note
 //!
 //! Composes only the public widget-kit surface — `Kind::Custom`, the
@@ -85,8 +113,10 @@ use crate::tree::*;
 ///   child with an explicit `.radius(...)`
 ///   ([`RadiusOrigin::Fixed`]) keeps it; the author asked for that
 ///   shape.
-/// - **Seams.** Exactly one hairline per boundary — see the module docs
-///   for the stroke-straddles-the-boundary reasoning.
+/// - **Seams.** Exactly one hairline per boundary, painted in the
+///   group's own frame stroke — `tokens::BORDER` for a bare
+///   `button_group`, the authored color once the author chains
+///   `.stroke(...)`. See the module docs for the seam rules.
 /// - **Flush-neighbour hygiene.** Joined children drop their
 ///   `hit_overflow` (an expanded target would steal the neighbour's
 ///   edge band — `FindingKind::HitOverflowCollision`) and switch to an
@@ -97,7 +127,9 @@ use crate::tree::*;
 /// Unlike [`crate::widgets::toggle::toggle_group`] the group draws no
 /// frame of its own: it has no fill and no stroke, so a group of
 /// `.ghost()` buttons stays chromeless, exactly as shadcn's
-/// `<ButtonGroup>` (a bare `role="group"` flex box) does.
+/// `<ButtonGroup>` (a bare `role="group"` flex box) does. Give it one —
+/// `.fill(trough).stroke(edge)` — and it becomes a bordered segmented
+/// control whose seams paint in `edge` too.
 ///
 /// ```ignore
 /// use damascene_core::prelude::*;
@@ -132,6 +164,10 @@ pub fn button_group(children: impl IntoIterator<Item = El>) -> El {
 /// [`crate::widgets::toggle::toggle_group`] so both anatomies collapse
 /// corners and resolve seams by the same rule. See [`button_group`] for
 /// the contract and the module docs for the seam reasoning.
+///
+/// Seams are resolved against `tokens::BORDER` here — the color a group
+/// with no frame of its own draws. A group that carries (or later
+/// receives) a frame stroke re-points them through [`restroke_seams`].
 pub(crate) fn join_row(items: &mut [El]) {
     let last = items.len().saturating_sub(1);
     for (i, item) in items.iter_mut().enumerate() {
@@ -145,30 +181,103 @@ pub(crate) fn join_row(items: &mut [El]) {
             .hit_overflow(Sides::zero())
             .focus_ring_inside();
     }
+    resolve_seams(items, tokens::BORDER);
+}
+
+/// The color a joined group paints into its seams: its own effective
+/// frame stroke, or `tokens::BORDER` when it has no frame.
+fn seam_color(group: &El) -> Color {
+    match group.stroke {
+        Some(c) if group.stroke_width > 0.0 => c,
+        _ => tokens::BORDER,
+    }
+}
+
+/// Re-resolve an already-joined group's seams against its current frame
+/// stroke. Called from [`El::stroke`](crate::El::stroke), which is how
+/// an author's chained `.stroke(...)` reaches seams that
+/// [`join_row`] resolved when the group was built — the frame and the
+/// dividers are one authored color (see the module docs).
+///
+/// A no-op on everything that is not a joined group, so the cost on the
+/// general `.stroke(...)` path is one `Kind` discriminant test.
+pub(crate) fn restroke_seams(group: &mut El) {
+    if !matches!(
+        group.kind,
+        Kind::Custom("button_group") | Kind::Custom("toggle_group")
+    ) {
+        return;
+    }
+    let seam = seam_color(group);
+    resolve_seams(&mut group.children, seam);
+}
+
+/// Give every interior boundary exactly one `seam`-colored hairline.
+///
+/// The left-border slot of a joined child is **library-owned**: the
+/// group installs the seam there and clears it again when a neighbour's
+/// own edge takes the boundary over, so the pass is idempotent and can
+/// be re-run when the seam color changes. (Corners and `hit_overflow`
+/// are taken over the same way — the group owns what makes N controls
+/// read as one.)
+fn resolve_seams(items: &mut [El], seam: Color) {
     for i in 1..items.len() {
-        if draws_edge(&items[i - 1]) || draws_edge(&items[i]) {
-            // One of the two strokes already lands a hairline on the
-            // shared boundary (strokes straddle it, so neighbouring
-            // strokes coincide instead of doubling). Adding a border
-            // here is what *would* double it.
+        if coincides_with_seam(&items[i - 1], seam) || coincides_with_seam(&items[i], seam) {
+            // One of the two strokes already lands this exact hairline
+            // on the shared boundary (strokes straddle it, so
+            // neighbouring strokes coincide instead of doubling).
+            // Adding a border here is what *would* double it.
+            clear_seam(&mut items[i]);
             continue;
         }
         items[i] = std::mem::take(&mut items[i])
             .border_l()
-            .border_color(tokens::BORDER);
+            .border_color(seam);
     }
 }
 
-/// Does this element paint a visible edge on its own boundary? True for
-/// the bordered variants (`.secondary()`, `.outline()`, `.current()`,
-/// `.selected()`); false for `.ghost()` (no stroke) and the solid
-/// tints (`.primary()`, `.destructive()` — `tint` sets stroke = fill,
-/// so the stroke is invisible against the fill it sits on).
-fn draws_edge(el: &El) -> bool {
-    match el.stroke {
-        None => false,
-        Some(_) if el.stroke_width <= 0.0 => false,
-        Some(stroke) => Some(stroke) != el.fill,
+/// Would this element's own edge land on the shared boundary *in the
+/// seam color* — i.e. is the seam already drawn?
+///
+/// Two conditions, both required:
+///
+/// - **Visible.** False for `.ghost()` (no stroke) and for the solid
+///   tints (`.primary()`, `.destructive()` — `tint` sets stroke = fill,
+///   so the stroke is invisible against the fill it sits on).
+/// - **The same color.** A `.secondary()` / `.outline()` / `.current()`
+///   segment strokes a token of its own; only when that resolves to the
+///   seam color do the two hairlines become one. Otherwise the seam is
+///   a distinct line the design asked for and the segment's outline is
+///   its own edge — suppressing it was the bug this predicate replaces.
+///
+/// Colors compare token-and-all, so `tokens::BORDER` never stands in for
+/// a hand-picked color that merely happens to share the default
+/// palette's rgb: the two would diverge under
+/// [`Theme::with_palette`](crate::Theme::with_palette).
+fn coincides_with_seam(el: &El, seam: Color) -> bool {
+    let Some(stroke) = el.stroke else {
+        return false;
+    };
+    if el.stroke_width <= 0.0 || Some(stroke) == el.fill {
+        return false;
+    }
+    stroke == seam
+}
+
+/// Release the library-owned seam slot, dropping the whole
+/// [`BorderSpec`] if nothing else was using it — so an unseamed child
+/// keeps `border == None`, the state it would have had if the seam had
+/// never been installed.
+fn clear_seam(item: &mut El) {
+    let Some(spec) = item.border.as_deref_mut() else {
+        return;
+    };
+    if spec.widths.left == 0.0 {
+        return;
+    }
+    spec.widths.left = 0.0;
+    if spec.widths == Sides::zero() {
+        item.border = None;
     }
 }
 
@@ -326,6 +435,97 @@ mod tests {
             "only the shared edge is bordered",
         );
         assert_eq!(border.color, Some(tokens::BORDER));
+    }
+
+    /// The seam color of the boundary before item `i`, or `None` when
+    /// that boundary carries no library seam.
+    fn seam(g: &El, i: usize) -> Option<Option<Color>> {
+        let b = g.children[i].border.as_deref()?;
+        (b.widths.left > 0.0).then_some(b.color)
+    }
+
+    /// The slicer_match target's `input.border`.
+    const EDGE: Color = Color::srgb_u8(58, 65, 77);
+    /// Any second hand-picked edge color.
+    const EDGE2: Color = Color::srgb_u8(120, 40, 40);
+
+    #[test]
+    fn seams_follow_the_authored_group_stroke() {
+        // The blocked case (slicer_match's local `segmented()`): a
+        // bordered trough whose seams must sit on the frame color, not
+        // on the region-rule token.
+        let g = button_group([button("One").ghost(), button("Two").ghost()]).stroke(EDGE);
+        assert_eq!(g.stroke, Some(EDGE), "the frame is the authored color");
+        assert_eq!(seam(&g, 1), Some(Some(EDGE)), "and so is the seam");
+    }
+
+    #[test]
+    fn an_unstroked_group_keeps_the_default_seam() {
+        // `button_group` is chromeless by design; with no frame of its
+        // own the seam stays on the region-rule token.
+        let g = button_group([button("One").ghost(), button("Two").ghost()]);
+        assert!(g.stroke.is_none(), "no frame of its own");
+        assert_eq!(seam(&g, 1), Some(Some(tokens::BORDER)));
+    }
+
+    #[test]
+    fn a_coincident_neighbour_edge_still_swallows_the_seam() {
+        // `.secondary()` strokes BORDER; stroke an unadorned group in
+        // BORDER too and the two hairlines are the same line, so the
+        // seam must stay suppressed.
+        let g = button_group([button("One"), button("Two")]).stroke(tokens::BORDER);
+        assert_eq!(g.children[1].stroke, Some(tokens::BORDER));
+        assert!(
+            g.children[1].border.is_none(),
+            "a coincident edge is the seam; a border would double it",
+        );
+    }
+
+    #[test]
+    fn a_differently_colored_neighbour_edge_no_longer_swallows_the_seam() {
+        // The measured slicer_match regression: the selected segment
+        // strokes `tokens::BORDER` while the trough is stroked
+        // `EDGE`, so the two lines are *different* lines — the divider
+        // is the design's, and the segment outline is its own.
+        let g = button_group([button("One").current(), button("Two").ghost()]).stroke(EDGE);
+        assert_eq!(g.children[0].stroke, Some(tokens::BORDER));
+        assert_eq!(
+            seam(&g, 1),
+            Some(Some(EDGE)),
+            "a neighbour edge in another color is not this seam",
+        );
+    }
+
+    #[test]
+    fn restroking_releases_a_seam_that_became_redundant() {
+        // The re-point runs in both directions: stroke the group in the
+        // segments' own edge color and the seam it had installed must
+        // go away again, back to `border == None`.
+        let g = button_group([button("One").ghost(), button("Two").ghost()]);
+        assert!(g.children[1].border.is_some(), "ghost pair starts seamed");
+        let g = g.stroke(EDGE2);
+        assert_eq!(seam(&g, 1), Some(Some(EDGE2)));
+        // Now a variant whose own stroke coincides with a re-pointed
+        // seam: both segments stroke BORDER, group stroked BORDER.
+        let g = button_group([button("One"), button("Two")])
+            .stroke(EDGE)
+            .stroke(tokens::BORDER);
+        assert!(
+            g.children[1].border.is_none(),
+            "the seam slot is released, not left as a zero-width spec",
+        );
+    }
+
+    #[test]
+    fn a_solid_tint_seam_follows_the_frame_too() {
+        // `.primary()` sets stroke == fill, so nothing marks the
+        // boundary and the seam is always drawn — in the frame color.
+        let g = button_group([
+            button("Save").primary(),
+            icon_button("chevron-down").primary(),
+        ])
+        .stroke(EDGE);
+        assert_eq!(seam(&g, 1), Some(Some(EDGE)));
     }
 
     #[test]

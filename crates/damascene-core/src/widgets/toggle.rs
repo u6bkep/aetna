@@ -31,6 +31,10 @@
 //! [`crate::widgets::button_group`]'s — see that module for the corner
 //! and seam rules.
 //!
+//! The trough's frame is `tokens::BORDER`, and so are the seams: a
+//! joined group's dividers follow its frame stroke, so
+//! `toggle_group(...).stroke(my_edge)` re-colors both together.
+//!
 //! The app owns the state; the widget is a pure visual + identity
 //! carrier — same controlled pattern used by [`crate::widgets::radio`]
 //! and [`crate::widgets::tabs`].
@@ -361,6 +365,11 @@ fn toggle_group_row(caller: &'static Location<'static>, items: Vec<El>) -> El {
         // The trough's frame. No fill: shadcn's grouped toggles are
         // `bg-transparent` until pressed, and the pressed item's own
         // `.current()` surface is what reads as the selection.
+        //
+        // This is also the seam color — `.stroke(...)` re-points a
+        // joined group's dividers (see `button_group`'s module docs),
+        // which is what lets an app re-color frame and seams together
+        // with one chained `.stroke(...)` on the group.
         .stroke(tokens::BORDER)
         .default_radius(tokens::RADIUS_MD)
         .width(Size::Hug)
@@ -499,6 +508,47 @@ mod tests {
             assert!(
                 item.border.is_none(),
                 "segment {i} must not double the pressed segment's edge"
+            );
+        }
+    }
+
+    #[test]
+    fn an_authored_frame_stroke_recolors_the_seams() {
+        // The trough's frame and its dividers are one authored line —
+        // the hook the workbench match exercises needed for a design
+        // whose segment seams sit on `input.border`.
+        const EDGE: Color = Color::srgb_u8(58, 65, 77);
+        let group = toggle_group_multi("filters", &HashSet::new(), [("a", "A"), ("b", "B")])
+            .stroke(EDGE);
+        assert_eq!(group.stroke, Some(EDGE));
+        assert_eq!(
+            group.children[1].border.as_deref().and_then(|b| b.color),
+            Some(EDGE),
+            "the seam follows the frame",
+        );
+    }
+
+    #[test]
+    fn an_authored_frame_stroke_reopens_the_pressed_segment_seams() {
+        // Default trough: the pressed segment's `.current()` stroke IS
+        // the seam (both `tokens::BORDER`), so its neighbours stay
+        // borderless — asserted in `a_pressed_segment_draws_its_own_seams`.
+        // Re-stroke the trough and the two stop coinciding: the divider
+        // is the design's line, the `.current()` outline is the
+        // selection's.
+        const EDGE: Color = Color::srgb_u8(58, 65, 77);
+        let group = toggle_group(
+            "view",
+            &"grid",
+            [("list", "List"), ("grid", "Grid"), ("map", "Map")],
+        )
+        .stroke(EDGE);
+        assert_eq!(group.children[1].stroke, Some(tokens::BORDER));
+        for i in [1, 2] {
+            assert_eq!(
+                group.children[i].border.as_deref().map(|b| b.widths.left),
+                Some(1.0),
+                "segment {i} keeps its divider next to the pressed segment",
             );
         }
     }

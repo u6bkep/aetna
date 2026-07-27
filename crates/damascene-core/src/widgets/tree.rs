@@ -41,6 +41,15 @@
 //! (flush stacks, issue #119), so `scroll([tree([...])])` needs no
 //! ring gutter.
 //!
+//! **Not to be confused with [`crate::widgets::collapsible`].** The
+//! disclosure gutter here belongs to a *hierarchy* row: 22px chrome
+//! rung, depth indent, arrow-key navigation, and the app emitting only
+//! the visible descendants. A standalone disclosure *section* — a
+//! settings group, a sidebar section header, a collapsed reasoning
+//! block — is `collapsible(key, label, open, [...])`, a 40px trigger
+//! over an indented body. A collapsible section may well contain a
+//! tree; a tree row is never a collapsible.
+//!
 //! ```ignore
 //! // A voice client's channel tree. The app owns `expanded` per
 //! // channel and emits members only for expanded channels.

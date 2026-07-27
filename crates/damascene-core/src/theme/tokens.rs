@@ -203,6 +203,12 @@ pub const SIDEBAR_WIDTH: f32 = 256.0;
 pub const SIDEBAR_WIDTH_MIN: f32 = 180.0;
 /// Resize ceiling for a sidebar (480 logical px) — above this, a sidebar stops being a sidebar.
 pub const SIDEBAR_WIDTH_MAX: f32 = 480.0;
+/// Collapsed icon-rail width (48 logical px) — shadcn's
+/// `--sidebar-width-icon` (3rem). The width `sidebar_with` renders at
+/// when the app's `collapsed` flag is set; wide enough for one
+/// [`CONTROL_HEIGHT`]-square icon button plus a [`SPACE_2`] gutter on
+/// each side.
+pub const SIDEBAR_WIDTH_ICON: f32 = 48.0;
 
 // ---- Control sizing ----
 //
