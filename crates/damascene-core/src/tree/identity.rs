@@ -178,6 +178,22 @@ impl El {
         self
     }
 
+    /// Paint this node's focus ring when the focused node is one of its
+    /// descendants — CSS **`:focus-within`** (web-platform oracle, per
+    /// `docs/NAMING_ORACLE.md`). The nearest flagged ancestor of the
+    /// focused node claims the ring; while claimed, the focused
+    /// descendant's own ring is suppressed so exactly one ring shows.
+    /// Ring visibility follows this node's own gate — `focus_visible`
+    /// (Tab) or [`Self::always_show_focus_ring`] — and placement /
+    /// `paint_overflow` reserve behave exactly as on a focused node.
+    /// No `.key(...)` needed; the node need not be focusable itself.
+    /// `input_group` sets this so focusing its de-chromed inner input
+    /// lights the whole trough instead of ringing the bare input.
+    pub fn focus_within(mut self) -> Self {
+        self.focus_within = true;
+        self
+    }
+
     /// Opt this node into the library's text-selection system. The
     /// node must also carry an explicit `.key(...)`; selection requires
     /// stable identity across rebuilds the same way focus does.

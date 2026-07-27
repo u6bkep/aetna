@@ -437,6 +437,7 @@ mod tests {
             rect: Rect::new(0.0, 0.0, 10.0, 10.0),
             tooltip: None,
             scroll_offset_y: 0.0,
+            content_inset: Sides::zero(),
         };
         let target_b = UiTarget {
             key: "b".into(),
@@ -444,6 +445,7 @@ mod tests {
             rect: Rect::new(0.0, 0.0, 10.0, 10.0),
             tooltip: None,
             scroll_offset_y: 0.0,
+            content_inset: Sides::zero(),
         };
         state.set_hovered(Some(target_a), now);
         let started = state.tooltip.hover_started_at;

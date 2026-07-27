@@ -30,6 +30,10 @@ const VIEWPORT_BG: Color = Color::srgb_u8(15, 15, 15);
 /// The build-plate grid, drawn as a wash rather than as geometry.
 const PLATE_LINE: Color = Color::srgb_u8a(255, 255, 255, 12);
 
+/// Edge of one square activity-bar tool, and so the width of the bar
+/// itself and of the rule that splits its tool groups.
+const TOOL_SIZE: f32 = 38.0;
+
 const MENU_KEY: &str = "menu";
 
 struct Slicer {
@@ -111,8 +115,8 @@ impl Slicer {
                 .tooltip(label.to_string())
                 .ghost()
                 .icon_size(tokens::ICON_MD)
-                .width(Size::Fixed(38.0))
-                .height(Size::Fixed(38.0))
+                .width(Size::Fixed(TOOL_SIZE))
+                .height(Size::Fixed(TOOL_SIZE))
                 .radius(0.0);
             if active {
                 b.fill(vs::LIST_INACTIVE_SELECTION_BG)
@@ -129,7 +133,11 @@ impl Slicer {
             tool("rotate", IconName::RotateCw, "Rotate"),
             tool("scale", IconName::Scaling, "Scale"),
             tool("mirror", IconName::FlipHorizontal, "Mirror"),
-            hairline(),
+            // The bar centers its (fixed-width) tools, and a centered
+            // parent resolves cross-axis `Size::Fill` to the child's
+            // zero intrinsic — `hairline()`'s full width would paint
+            // nothing here, so the rule spans the bar explicitly.
+            hairline().width(Size::Fixed(TOOL_SIZE)),
             tool("measure", IconName::Ruler, "Measure"),
             tool("camera", IconName::Camera, "Camera"),
         ])
@@ -138,7 +146,7 @@ impl Slicer {
         .fill(vs::ACTIVITY_BAR_BG)
         .border_r()
         .border_color(vs::ACTIVITY_BAR_BORDER)
-        .width(Size::Fixed(38.0))
+        .width(Size::Fixed(TOOL_SIZE))
         .height(Size::Fill(1.0))
         .align(Align::Center)
     }

@@ -104,6 +104,7 @@ pub fn draw_ops_with_theme_and_stats(
         0.0,
         0.0,
         0.0,
+        false,
         1.0,
         stats,
     );
@@ -176,13 +177,14 @@ fn resolve_uniform_block(uniforms: &mut UniformBlock, palette: &Palette) {
     }
 }
 
-// Recursion threads seven "inherited from parent" paint values
+// Recursion threads eight "inherited from parent" paint values
 // (scissor, translate, opacity, focus / hover / press envelopes from
-// the nearest focusable ancestor, plus the *strict* nearest-focusable-
+// the nearest focusable ancestor, the *strict* nearest-focusable-
 // ancestor's combined subtree-interaction envelope used by
-// `hover_alpha`) and the four shared references (node, ui_state,
-// theme, out accumulator). The explicit signature documents the
-// dataflow more clearly than a bundling struct would.
+// `hover_alpha`, plus the `:focus-within` ring-claimed flag) and the
+// four shared references (node, ui_state, theme, out accumulator).
+// The explicit signature documents the dataflow more clearly than a
+// bundling struct would.
 #[allow(clippy::too_many_arguments)]
 fn push_node(
     n: &El,
@@ -196,6 +198,15 @@ fn push_node(
     inherited_hover_envelope: f32,
     inherited_press_envelope: f32,
     inherited_interaction_envelope: f32,
+    // True when a `focus_within` ancestor claimed the focus ring for
+    // this subtree (CSS `:focus-within`): the flagged ancestor paints
+    // ONE ring around the group, so a focused descendant suppresses its
+    // own ring paint. Only the ring uniforms are suppressed — the focus
+    // envelope itself still cascades (caret fade, `dim_fill`
+    // saturation). A nested flagged node ignores the inherited flag for
+    // its own group ring: the nearest flagged ancestor of the focused
+    // node claims (its envelope is the only one the tick raises).
+    ring_claimed: bool,
     // Uniform scale factor from enclosing `viewport()` zoom(s). Layout
     // already baked the zoom into descendant *rects*; this carries the
     // same factor for the per-node *scalar* visuals (font size, padding,
@@ -236,9 +247,25 @@ fn push_node(
             ui_state.envelope(&n.computed_id, EnvelopeKind::Press),
             ui_state.envelope(&n.computed_id, EnvelopeKind::FocusRing),
         )
+    } else if n.focus_within {
+        // `:focus-within` chrome is usually unkeyed, so it misses the
+        // keyed-interactive probe above — but the tick tracks a
+        // FocusRing envelope on it (see `anim::tick`) for the group
+        // ring. Hover / press stay untracked.
+        (
+            0.0,
+            0.0,
+            ui_state.envelope(&n.computed_id, EnvelopeKind::FocusRing),
+        )
     } else {
         (0.0, 0.0, 0.0)
     };
+    // Who paints a ring from this node's envelope: a `focus_within`
+    // node always may (its envelope only rises while it is the
+    // nearest-flagged claimant); a focusable node may unless a flagged
+    // ancestor claimed the ring for the group.
+    let paints_focus_ring =
+        focus_ring_alpha > 0.0 && (n.focus_within || (n.focusable && !ring_claimed));
 
     // `state_follows_interactive_ancestor` borrows the nearest
     // focusable ancestor's hover / press envelopes for paint. The
@@ -471,7 +498,7 @@ fn push_node(
         });
     } else if fill.is_some()
         || stroke.is_some()
-        || focus_ring_alpha > 0.0
+        || paints_focus_ring
         || n.surface_role.provides_fill()
     {
         let mut uniforms = UniformBlock::new();
@@ -514,8 +541,11 @@ fn push_node(
         // into its rgba) plus `focus_width`. Positive width means outside
         // the layout rect; negative means an inside ring for dense flush rows.
         // Custom shaders read the same uniforms and decide for
-        // themselves what to paint — the symmetry rule.
-        if n.focusable && focus_ring_alpha > 0.0 {
+        // themselves what to paint — the symmetry rule. `focus_within`
+        // nodes ring here identically, driven by their own claimed
+        // envelope; focusable nodes under a flagged ancestor are
+        // suppressed via `paints_focus_ring`.
+        if paints_focus_ring {
             let base = tokens::RING;
             let eased_alpha = (base.a * focus_ring_alpha * opacity).clamp(0.0, 1.0);
             uniforms.insert(
@@ -544,8 +574,7 @@ fn push_node(
         } else {
             0.0
         };
-        let focus_width = if n.focusable
-            && focus_ring_alpha > 0.0
+        let focus_width = if paints_focus_ring
             && matches!(n.focus_ring_placement, FocusRingPlacement::Outside)
         {
             tokens::RING_WIDTH
@@ -1025,6 +1054,11 @@ fn push_node(
             child_hover_envelope,
             child_press_envelope,
             child_interaction_envelope,
+            // A `focus_within` node owns the ring for its whole subtree
+            // — structurally, not only while focus is inside — so a
+            // blurred descendant's fading ring is suppressed too (the
+            // group's own envelope carries the fade-out instead).
+            ring_claimed || n.focus_within,
             child_content_scale,
             stats,
         );
@@ -2412,7 +2446,7 @@ fn push_text_area_editor_overlay(
     font_size: f32,
     weight: FontWeight,
 ) {
-    let (Some(key), Some(value)) = (n.text_link.as_deref(), n.tooltip.as_deref()) else {
+    let (Some(key), Some(value)) = (n.text_link.as_deref(), n.tooltip_text()) else {
         return;
     };
     let Some(view) = ui_state.current_selection.within(key) else {
@@ -5811,6 +5845,133 @@ mod tests {
 
     fn find_quad<'a>(ops: &'a [DrawOp], id_substr: &str) -> Option<&'a DrawOp> {
         ops.iter().find(|op| op.id().contains(id_substr))
+    }
+
+    /// All quad ids carrying a `focus_color` uniform, in paint order.
+    fn ringed_quad_ids(ops: &[DrawOp]) -> Vec<String> {
+        ops.iter()
+            .filter_map(|op| match op {
+                DrawOp::Quad { id, uniforms, .. } if uniforms.get("focus_color").is_some() => {
+                    Some(id.to_string())
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn input_group_tree() -> El {
+        use crate::widgets::input_group::{input_group, input_group_addon, input_group_text};
+        use crate::widgets::text_input::text_input;
+        let selection = crate::selection::Selection::default();
+        column([input_group([
+            input_group_addon(crate::icons::icon("search")),
+            text_input("q", "hello", &selection),
+            input_group_text("mm"),
+        ])])
+        .padding(20.0)
+    }
+
+    #[test]
+    fn input_group_focus_ring_wraps_group_not_inner_input() {
+        // CSS `:focus-within` end-to-end: focusing the de-chromed
+        // inner input moves the stock focus ring to the GROUP quad —
+        // one ring around the whole trough — and suppresses the
+        // focused input's own ring (no second ring cutting through
+        // the middle).
+        use crate::layout::layout;
+
+        let mut tree = input_group_tree();
+        let mut state = UiState::new();
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 200.0));
+        state.set_animation_mode(crate::state::AnimationMode::Settled);
+
+        // Unfocused baseline: nothing carries focus uniforms.
+        state.tick_visual_animations(&mut tree, web_time::Instant::now(), &Palette::default());
+        let ops = draw_ops(&tree, &state);
+        assert!(
+            ringed_quad_ids(&ops).is_empty(),
+            "no ring while unfocused",
+        );
+
+        // Click-focus the inner input (`focus_visible` stays false —
+        // the group's `always_show_focus_ring` covers pointer focus,
+        // matching a standalone text_input).
+        state.focused = Some(state.target_of_key(&tree, "q").expect("q target"));
+        assert!(!state.focus_visible);
+        state.apply_to_state();
+        state.tick_visual_animations(&mut tree, web_time::Instant::now(), &Palette::default());
+        let ops = draw_ops(&tree, &state);
+
+        let group_id = {
+            fn find(n: &El) -> Option<&El> {
+                if matches!(n.kind, Kind::Custom("input_group")) {
+                    return Some(n);
+                }
+                n.children.iter().find_map(find)
+            }
+            find(&tree).expect("input_group node").computed_id.clone()
+        };
+        assert_eq!(
+            ringed_quad_ids(&ops),
+            vec![group_id.to_string()],
+            "exactly one quad rings — the group, not the focused inner input",
+        );
+
+        // The group's ring uses the stock uniforms exactly as a
+        // focused node's: full eased alpha (settled), outside
+        // placement at RING_WIDTH.
+        let DrawOp::Quad { uniforms, .. } = find_quad(&ops, "input_group").expect("group quad")
+        else {
+            unreachable!()
+        };
+        let UniformValue::Color(c) = uniforms.get("focus_color").expect("focus_color") else {
+            panic!("focus_color must be a color uniform");
+        };
+        assert_eq!(c.a, tokens::RING.a, "settled ring at full envelope alpha");
+        assert_eq!(
+            uniforms.get("focus_width"),
+            Some(&UniformValue::F32(tokens::RING_WIDTH)),
+            "outside ring, stock width",
+        );
+    }
+
+    #[test]
+    fn input_group_ring_alpha_rides_the_eased_focus_envelope() {
+        // Live mode, one 8 ms tick after focus arrives: the group ring
+        // must be mid-fade — strictly between 0 and the settled alpha
+        // — i.e. it follows the same eased FocusRing envelope as a
+        // focused node's own ring rather than snapping.
+        use crate::layout::layout;
+
+        let mut tree = input_group_tree();
+        let mut state = UiState::new();
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 200.0));
+        let t0 = web_time::Instant::now();
+        state.tick_visual_animations(&mut tree, t0, &Palette::default());
+
+        state.focused = Some(state.target_of_key(&tree, "q").expect("q target"));
+        state.apply_to_state();
+        state.tick_visual_animations(
+            &mut tree,
+            t0 + std::time::Duration::from_millis(8),
+            &Palette::default(),
+        );
+        let ops = draw_ops(&tree, &state);
+        let ringed = ringed_quad_ids(&ops);
+        assert_eq!(ringed.len(), 1, "only the group rings mid-fade");
+        let DrawOp::Quad { uniforms, .. } =
+            find_quad(&ops, &ringed[0]).expect("group quad")
+        else {
+            unreachable!()
+        };
+        let UniformValue::Color(c) = uniforms.get("focus_color").expect("focus_color") else {
+            panic!("focus_color must be a color uniform");
+        };
+        assert!(
+            c.a > 0.0 && c.a < tokens::RING.a,
+            "ring alpha must be mid-flight on the eased envelope, got {}",
+            c.a,
+        );
     }
 
     #[test]

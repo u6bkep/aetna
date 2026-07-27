@@ -170,8 +170,13 @@ fn hit_test_rec(
                 key: key.clone(),
                 node_id: node.computed_id.clone(),
                 rect: painted_rect,
-                tooltip: node.tooltip.clone(),
+                tooltip: node.tooltip_text().map(str::to_string),
                 scroll_offset_y: nearest_descendant_scroll_offset_y(node, ui_state),
+                // Scaled like `painted_rect` (and like
+                // `draw_ops::push_node` scales the paint-time inset),
+                // so `rect.inset(content_inset)` stays the content box
+                // of the rect the user actually sees.
+                content_inset: node.content_inset().scaled(node.scale),
             },
             distance_sq: point_distance_sq_from_rect(point, painted_rect),
         };

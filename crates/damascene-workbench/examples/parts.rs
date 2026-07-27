@@ -466,17 +466,13 @@ impl Copperline {
 
         column([
             pane_header("PROPERTIES", [chip(part.reference)]),
-            column([
-                self.footprint_preview(),
-                hairline(),
-                self.property_form(),
-            ])
-            .gap(tokens::SPACE_3)
-            .padding(tokens::SPACE_3)
-            .width(Size::Fill(1.0))
-            .height(Size::Fill(1.0))
-            .align(Align::Stretch)
-            .scrollable(),
+            column([self.footprint_preview(), hairline(), self.property_form()])
+                .gap(tokens::SPACE_3)
+                .padding(tokens::SPACE_3)
+                .width(Size::Fill(1.0))
+                .height(Size::Fill(1.0))
+                .align(Align::Stretch)
+                .scrollable(),
             self.inspector_actions(),
         ])
         .fill(vs::SIDE_BAR_BG)
@@ -600,24 +596,21 @@ const COL_FOOTPRINT: f32 = 1.5;
 const COL_LIBRARY: f32 = 1.4;
 const COL_STOCK: f32 = 0.6;
 
-/// A body cell at a given column weight, tightened from the stock
-/// vertical padding to the workbench's row density.
+/// A body cell at a given column weight.
+///
+/// No padding override: cell padding is on the `ComponentSize` ladder,
+/// so this theme's `Xs` rung already stamps `xy(8, 4.71)` — the value
+/// this helper used to hardcode as `xy(SPACE_2, 5.0)`.
 fn cell(content: impl Into<El>, weight: f32) -> El {
-    table_cell(content)
-        .padding(Sides::xy(tokens::SPACE_2, 5.0))
-        .width(Size::Fill(weight))
+    table_cell(content).width(Size::Fill(weight))
 }
 
 fn head(label: &str, weight: f32) -> El {
-    table_head(label)
-        .padding(Sides::xy(tokens::SPACE_2, 5.0))
-        .width(Size::Fill(weight))
+    table_head(label).width(Size::Fill(weight))
 }
 
 fn head_right(label: &str, weight: f32) -> El {
-    table_head_el(text(label).text_align(TextAlign::End))
-        .padding(Sides::xy(tokens::SPACE_2, 5.0))
-        .width(Size::Fill(weight))
+    table_head_el(text(label).text_align(TextAlign::End)).width(Size::Fill(weight))
 }
 
 /// A dense inspector row: fixed label gutter, control takes the rest.
@@ -792,4 +785,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let viewport = Rect::new(0.0, 0.0, 1280.0, 800.0);
     damascene_winit_wgpu::run("Copperline", viewport, Copperline::new())
 }
-

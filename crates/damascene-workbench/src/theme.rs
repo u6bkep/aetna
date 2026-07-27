@@ -778,6 +778,86 @@ mod tests {
         (c.r, c.g, c.b)
     }
 
+    /// WCAG 2.x relative luminance of an opaque sRGB color.
+    fn luminance(c: damascene_core::tree::Color) -> f32 {
+        let [r, g, b, _] = c.to_srgb_u8a();
+        let lin = |v: u8| {
+            let v = v as f32 / 255.0;
+            if v <= 0.04045 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    }
+
+    /// WCAG 2.x contrast ratio between two opaque sRGB colors.
+    fn contrast(a: damascene_core::tree::Color, b: damascene_core::tree::Color) -> f32 {
+        let (mut hi, mut lo) = (luminance(a), luminance(b));
+        if hi < lo {
+            std::mem::swap(&mut hi, &mut lo);
+        }
+        (hi + 0.05) / (lo + 0.05)
+    }
+
+    #[test]
+    fn dark_modern_records_the_status_pairs_the_transcription_costs() {
+        // Core holds every stock palette's solid status pairs to
+        // 4.5:1 (`status_foregrounds_clear_the_small_text_floor`).
+        // Dark Modern cannot join them: `success-foreground`,
+        // `destructive-foreground` and `info-foreground` are all
+        // `button.foreground` (`#FFFFFF`), transcribed, and VS Code's
+        // own `#F85149` / `#2EA043` fills sit in the band where white
+        // reads as legible and measures under AA. Inventing a dark
+        // label here is exactly what `docs/WORKBENCH_VISION.md`'s
+        // calibration plan forbids, so the reference wins and this
+        // test records by how much — the precedent the chip material
+        // set in `chrome::tests::palettes`.
+        //
+        // The exception is scoped to the two pairs that miss. If a
+        // future edit moves any *other* pair below the core floor, or
+        // moves these two further down, this test fails.
+        let p = dark_modern_palette();
+        let measured = |fill, fg| (contrast(fill, fg) * 100.0).round() / 100.0;
+
+        assert_eq!(measured(p.destructive, p.destructive_foreground), 3.35);
+        assert_eq!(measured(p.success, p.success_foreground), 3.37);
+
+        for (role, fill, fg) in [
+            ("primary", p.primary, p.primary_foreground),
+            ("warning", p.warning, p.warning_foreground),
+            ("info", p.info, p.info_foreground),
+        ] {
+            let ratio = contrast(fill, fg);
+            assert!(
+                ratio >= 4.5,
+                "{role}: Dark Modern clears the core floor here at \
+                 {ratio:.2}:1 — only destructive/success are excused"
+            );
+        }
+    }
+
+    #[test]
+    fn slate_palette_inherits_the_retuned_status_labels() {
+        // The default theme paints the stock slate palette, so the
+        // core retune must reach it rather than stop at the crate
+        // boundary — and `button.foreground` / `statusBarItem.
+        // remoteForeground`, which the remap derives from
+        // `primary-foreground`, must move with it.
+        let p = slate_palette();
+        let stock = Palette::radix_slate_blue_dark();
+        assert_eq!(rgb(p.primary_foreground), rgb(stock.primary_foreground));
+        assert!(
+            contrast(p.primary, p.primary_foreground) >= 4.5,
+            "the default theme's primary button label must clear AA"
+        );
+        assert_eq!(
+            rgb(p.lookup("button.foreground").expect("key is registered")),
+            rgb(stock.primary_foreground)
+        );
+    }
+
     #[test]
     fn card_is_the_side_bar_not_the_background() {
         // The load-bearing row: this is what converts floating cards
@@ -915,6 +995,64 @@ mod tests {
         );
         // 28px, not shadcn's 36px `Md` — inversion 1.
         assert_eq!(el.height, damascene_core::tree::Size::Fixed(28.0));
+    }
+
+    #[test]
+    fn a_stock_table_lands_on_the_reference_row_pitch_with_no_app_code() {
+        // Inversion 1 reaching the data view. `references/workbench-
+        // validation/parts/index.html` declares its parts-index rows as
+        // `tbody tr { height: 28px }` and renders them at a 30px pitch
+        // (rules measured off `reference.png` at y = 164, 194, 224, 254,
+        // 284). Before cell padding joined the ComponentSize ladder a
+        // stock table under this theme measured 35.57px — which is why
+        // both `examples/parts.rs` and `examples/parts_v2.rs` used to
+        // carry a local `ROW_PAD_Y = 5.0` and re-pad every cell.
+        //
+        // Nothing here builds a cell by hand: `theme()`'s `Xs` rung is
+        // the whole configuration.
+        use damascene_core::bundle::artifact::render_bundle_themed;
+        use damascene_core::tree::Rect;
+        use damascene_core::widgets::table::{
+            TableColumn, table, table_body, table_header, table_header_cells, table_row_cells,
+        };
+        use damascene_core::{column, text};
+
+        const COLS: &[TableColumn] = &[
+            TableColumn::fill(1.0),
+            TableColumn::fill(1.0),
+            TableColumn::fill(0.6).align_end(),
+        ];
+        let mut root = column([table([
+            table_header([table_header_cells(COLS, ["Reference", "Value", "Stock"])]),
+            table_body((0..5).map(|i| {
+                table_row_cells(
+                    format!("row:{i}"),
+                    COLS,
+                    [
+                        text(format!("RC0603FR-071{i}KL")).mono(),
+                        text("10 kΩ 1%"),
+                        text("4,812").tabular_numerals(),
+                    ],
+                )
+            })),
+        ])]);
+        render_bundle_themed(&mut root, Rect::new(0.0, 0.0, 960.0, 600.0), &theme());
+
+        let body = &root.children[0].children[1];
+        let pitch = body.children[1].computed_rect.y - body.children[0].computed_rect.y;
+        // Last row: no `border_b`, so this is the content box alone.
+        let content = body.children.last().unwrap().computed_rect.h;
+        assert_eq!(content, 28.0, "the reference's declared `tbody tr` height");
+        assert_eq!(pitch, 29.0, "one px under the reference's rendered 30");
+        // The cells the rung stamped, against the hand-tightened
+        // `Sides::xy(SPACE_2, 5.0)` the validation apps converged on.
+        let cell = &body.children[0].children[0];
+        assert_eq!(cell.padding.left, damascene_core::tokens::SPACE_2);
+        assert!(
+            (cell.padding.top - 5.0).abs() < 0.3,
+            "vertical padding {} should land on the hand-measured 5px",
+            cell.padding.top
+        );
     }
 
     #[test]

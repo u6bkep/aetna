@@ -37,12 +37,24 @@
 //! bordered element. A rule *between* two siblings that neither of them
 //! should own — a separator inside a scrolling list, a divider between
 //! toolbar groups — is still a node of its own.
+//!
+//! # Two of these are pure aliases
+//!
+//! [`hairline`] and [`vertical_hairline`] are one-call delegations to
+//! core's `separator()` / `vertical_separator()`, and [`chip`] is
+//! `badge()` at the chrome rung with the chrome material stamped on.
+//! Where a workbench name and a stock widget mean the same object, the
+//! name is the only thing this module adds — there is no second
+//! implementation to drift.
 
 #![warn(missing_docs)]
 
+use damascene_core::metrics::ComponentSize;
 use damascene_core::style::StyleProfile;
 use damascene_core::tokens;
 use damascene_core::tree::*;
+use damascene_core::widgets::badge::badge;
+use damascene_core::widgets::separator::{separator, vertical_separator};
 use damascene_core::widgets::text::text;
 
 use crate::tokens as vs;
@@ -103,14 +115,46 @@ where
 /// # Anatomy
 ///
 /// ```text
-/// chip  fill=badge  radius=2  h=16  px=SPACE_1   profile=Solid
-///   └─ text  caption  color=badge-foreground
+/// chip = badge  size=Xxs  fill=badge  radius=2  profile=Solid
+///        caption  regular  color=badge-foreground
 /// ```
+///
+/// # It is the stock `badge`, restyled
+///
+/// One anatomy serves both: the body is `badge(label)` at
+/// [`ComponentSize::Xxs`] — the *chrome rung* of the badge metrics
+/// ladder, 16px tall with 4px of horizontal padding, which is exactly
+/// this chip's geometry — with three chrome stamps on top. There is no
+/// second pill implementation here, and [`vs::CHIP_HEIGHT`] is the
+/// rung's height rather than a competing literal (asserted in this
+/// module's tests).
+///
+/// The three stamps are the whole difference:
+///
+/// 1. **Material.** `.ghost()` strips the badge's tinted fill and
+///    stroke, then a solid [`tokens::BADGE`] fill goes on with no
+///    stroke at all. A stroke would straddle the boundary and widen the
+///    chip by a pixel on every side; chrome wants a flat block.
+/// 2. **Profile.** [`StyleProfile::Solid`] instead of the badge's
+///    `Tinted`, which is what makes the status modifiers paint filled
+///    chips (see below).
+/// 3. **Radius.** Pinned to [`vs::RADIUS`] with `.radius()` rather than
+///    left to the theme, so the theme's radius scale leaves it alone —
+///    a chip stays at exactly [`vs::RADIUS`] under any scale, including
+///    a consumer who squares the app entirely.
+///
+/// The label also keeps caption's regular weight where a badge goes
+/// Medium: at 12px inside a 16px strip the extra weight thickens the
+/// glyphs without buying legibility, and VS Code's own badges are set
+/// at the normal face.
+///
+/// Reach for `badge()` when you want shadcn's tinted status pill on a
+/// page; reach for `chip` for counts and flags packed into chrome.
 ///
 /// # The material is the `badge` palette slot
 ///
-/// `damascene_core::tokens::BADGE` — the **stock** token, written the
-/// way [`hairline`] writes `tokens::BORDER`, so the chip follows a
+/// `damascene_core::tokens::BADGE` — the **stock** token, the same way
+/// [`hairline`] resolves to `tokens::BORDER`, so the chip follows a
 /// palette swap in a downstream theme of this vocabulary. Both themes
 /// in this crate point VS Code's `badge.background` at that same slot,
 /// so the pixel is also `vs::BADGE_BG` either way.
@@ -134,32 +178,30 @@ where
 /// `.destructive()`, `.primary()` and `.muted()` already name every
 /// tint a chip should have, and they cost zero new vocabulary.
 ///
-/// # Badge-adjacent, deliberately not a badge
+/// A tinted chip is set **semibold**, because that is what the `Solid`
+/// tint does to every widget that wears it (a filled button, a solid
+/// badge) and the chip is now one node rather than a box around a text
+/// leaf the modifier could not reach. The plain chip keeps the regular
+/// face described above.
 ///
-/// The stock `badge()` is the right shape but the wrong *material*: it
-/// is a tinted outline (`StyleProfile::Tinted`) on a 6px radius, where
-/// chrome wants a solid fill on [`vs::RADIUS`]. Density is no longer
-/// the difference — the badge ladder's floor rung
-/// (`ComponentSize::Xxs`, the chrome rung) is 16px with 4px of
-/// horizontal padding, exactly this chip's geometry; a badge's default
-/// rung is still 20px. Reach for `badge()` when you want shadcn's
-/// status pill; reach for `chip` for counts and flags packed into
-/// chrome.
+/// # Geometry comes from the ladder, not from here
 ///
-/// The radius is set with `.radius()` rather than left to the theme, so
-/// it is *explicit* and the theme's radius scale leaves it alone. That
-/// is what pins a chip at exactly [`vs::RADIUS`] under any scale,
-/// including a consumer who squares the app entirely.
+/// Because the rung is what sizes it, a chip carries no explicit height
+/// or padding: [`vs::CHIP_HEIGHT`] and `SPACE_1` land on it through the
+/// metrics pass, the same way every other stock control takes its size.
+/// A caller who needs a different one asks for a different rung
+/// (`chip("3").size(ComponentSize::Xs)`) rather than hardcoding pixels.
 pub fn chip(label: impl Into<String>) -> El {
-    row([text(label).caption().text_color(tokens::BADGE_FOREGROUND)])
+    badge(label)
+        .size(ComponentSize::Xxs)
+        // Strips the tint's fill *and* stroke; the chrome material goes
+        // on next, and nothing else may paint an edge.
+        .ghost()
         .style_profile(StyleProfile::Solid)
         .fill(tokens::BADGE)
+        .text_color(tokens::BADGE_FOREGROUND)
+        .font_weight(FontWeight::Regular)
         .radius(vs::RADIUS)
-        .height(Size::Fixed(vs::CHIP_HEIGHT))
-        .width(Size::Hug)
-        .padding(Sides::x(tokens::SPACE_1))
-        .align(Align::Center)
-        .justify(Justify::Center)
 }
 
 /// The window title strip — VS Code's `titlebar`, at
@@ -361,7 +403,17 @@ pub fn section_header(title: impl Into<String>, description: impl Into<String>) 
     .height(Size::Hug)
 }
 
-/// A 1px horizontal rule in `tokens::BORDER`.
+/// A 1px horizontal rule in `tokens::BORDER` — the workbench name for
+/// core's [`separator`].
+///
+/// # It *is* `separator()`
+///
+/// The body is one call: this recipe adds nothing to the stock widget
+/// and exists only so a workbench shell can say "hairline", the word
+/// the VS Code vocabulary uses for a region rule, without leaving the
+/// name unaccounted for. `separator()` is the shadcn name for the same
+/// [`vs::HAIRLINE`]-thick node; reach for either. The pair of names is
+/// the whole delta, so nothing can drift between them.
 ///
 /// It resolves to the same value as [`vs::PANEL_BORDER`] under both of
 /// this crate's themes — `#363A3F` under [`crate::theme::theme`],
@@ -388,15 +440,16 @@ pub fn section_header(title: impl Into<String>, description: impl Into<String>) 
 /// give the rule an explicit `.width(...)`. The same applies to core's
 /// `separator()`, and to [`vertical_hairline`] on the other axis.
 pub fn hairline() -> El {
-    divider()
-        .width(Size::Fill(1.0))
-        .height(Size::Fixed(vs::HAIRLINE))
-        .fill(tokens::BORDER)
+    separator()
 }
 
-/// [`hairline`] turned on its side — a 1px *vertical* rule in
-/// `tokens::BORDER`, for the gap between two groups of controls inside
-/// one bar.
+/// [`hairline`] turned on its side — the workbench name for core's
+/// [`vertical_separator`], a 1px *vertical* rule in `tokens::BORDER`
+/// for the gap between two groups of controls inside one bar.
+///
+/// As with [`hairline`], the body is one call and the name is the whole
+/// delta: `vertical_separator()` is the same node under the shadcn
+/// vocabulary.
 ///
 /// The same argument as [`hairline`], one axis over. Per-side borders
 /// separate a bar from what is above or below it at no cost; they
@@ -420,10 +473,7 @@ pub fn hairline() -> El {
 /// drew by hand, short enough to read as a group divider rather than as
 /// a region boundary.
 pub fn vertical_hairline() -> El {
-    divider()
-        .width(Size::Fixed(vs::HAIRLINE))
-        .height(Size::Fill(1.0))
-        .fill(tokens::BORDER)
+    vertical_separator()
 }
 
 #[cfg(test)]
@@ -500,26 +550,67 @@ mod tests {
         assert!(bar.children[2].children.is_empty());
     }
 
-    #[test]
-    fn chip_is_denser_and_squarer_than_the_stock_badge() {
-        use damascene_core::widgets::badge::{BADGE_RADIUS, badge};
+    /// Run the metrics + layout passes under this crate's theme, the
+    /// way every backend does before painting, and hand back the node.
+    /// A chip takes its box from the badge ladder's chrome rung, so its
+    /// geometry only exists after this.
+    fn measured(el: El) -> El {
+        use damascene_core::bundle::artifact::render_bundle_themed;
+        let mut root = row([el])
+            .align(Align::Center)
+            .padding(0.0)
+            .width(Size::Fill(1.0))
+            .height(Size::Fixed(40.0));
+        render_bundle_themed(
+            &mut root,
+            Rect::new(0.0, 0.0, 400.0, 40.0),
+            &crate::theme::theme(),
+        );
+        root.children.remove(0)
+    }
 
+    #[test]
+    fn chip_is_the_stock_badge_at_the_chrome_rung() {
+        // The dedup, pinned: chip is `badge()` — same kind, same
+        // metrics role — asking for the ladder's floor rung rather than
+        // re-deriving a box of its own.
         let c = chip("3");
-        assert_eq!(c.height, Size::Fixed(vs::CHIP_HEIGHT));
+        assert_eq!(c.kind, badge("3").kind);
+        assert_eq!(c.metrics_role, badge("3").metrics_role);
+        assert_eq!(c.component_size, Some(ComponentSize::Xxs));
+        assert_eq!(c.text.as_deref(), Some("3"));
         assert_eq!(c.width, Size::Hug);
         assert_eq!(c.fill, Some(tokens::BADGE));
         assert_eq!(c.radius.tl, vs::RADIUS);
+        assert!(
+            c.stroke.is_none(),
+            "a chrome chip is a flat block — a stroke would straddle its \
+             boundary and widen it"
+        );
+    }
+
+    #[test]
+    fn the_chrome_rung_is_the_chip_height_this_crate_names() {
+        // `vs::CHIP_HEIGHT` is a *name* for the rung, not a second
+        // source of truth. If core re-tunes `ComponentSize::Xxs`, this
+        // fails rather than letting the two silently fork.
+        assert_eq!(measured(chip("3")).computed_rect.h, vs::CHIP_HEIGHT);
+        // And the horizontal padding the rung carries with it, which is
+        // the `SPACE_1` the recipe used to stamp by hand.
+        assert_eq!(measured(chip("3")).padding.left, tokens::SPACE_1);
+        assert_eq!(measured(chip("3")).padding.right, tokens::SPACE_1);
+    }
+
+    #[test]
+    fn chip_is_denser_and_squarer_than_the_stock_badge() {
+        use damascene_core::widgets::badge::BADGE_RADIUS;
 
         // Measured against the real badge rather than against recalled
-        // numbers: shorter than the badge's own default height (the
-        // badge metrics ladder runs 16/18/20/24/28, default 20) and
-        // squarer than its 6px corner.
-        let b = badge("3");
-        let fixed = |s: Size| match s {
-            Size::Fixed(v) => v,
-            other => panic!("expected a fixed height, got {other:?}"),
-        };
-        assert!(fixed(c.height) < fixed(b.height));
+        // numbers: shorter than the badge's default rung (the ladder
+        // runs 16/18/20/24/28) and squarer than its 6px corner.
+        let c = measured(chip("3"));
+        let b = measured(badge("3"));
+        assert!(c.computed_rect.h < b.computed_rect.h);
         assert!(c.radius.tl < BADGE_RADIUS);
         assert!(b.fill.is_some());
     }
@@ -539,10 +630,7 @@ mod tests {
         // is the token that a palette re-resolves.
         let c = chip("3");
         assert_eq!(c.fill.and_then(|f| f.token), Some("badge"));
-        assert_eq!(
-            c.children[0].text_color.and_then(|f| f.token),
-            Some("badge-foreground")
-        );
+        assert_eq!(c.text_color.and_then(|f| f.token), Some("badge-foreground"));
     }
 
     #[test]
@@ -567,11 +655,7 @@ mod tests {
 
             // And the label still reads on the chip it sits in — this
             // one is the real small-text floor under both themes.
-            let label = p.resolve(
-                chip("3").children[0]
-                    .text_color
-                    .expect("the label is colored"),
-            );
+            let label = p.resolve(chip("3").text_color.expect("the label is colored"));
             let text_ratio = contrast(label, fill);
             assert!(
                 text_ratio >= 4.5,
@@ -633,21 +717,28 @@ mod tests {
             (chip("2").destructive(), tokens::DESTRUCTIVE),
         ] {
             assert_eq!(c.fill, Some(tint), "a tinted chip fills solid");
-            // The label follows onto the contrasting foreground, and
-            // the child text leaf follows with it — otherwise the
-            // caption keeps `badge-foreground` over a colored fill.
-            assert_eq!(c.text_color, c.children[0].text_color);
+            // The label follows onto the contrasting foreground —
+            // otherwise the caption keeps `badge-foreground` over a
+            // colored fill.
             assert_ne!(
-                c.children[0].text_color,
+                c.text_color,
                 Some(tokens::BADGE_FOREGROUND),
                 "the label must leave the badge slot when the chip is tinted"
             );
             // Geometry is the shared chip recipe — tint changes color
             // only.
-            assert_eq!(c.height, Size::Fixed(vs::CHIP_HEIGHT));
+            assert_eq!(measured(c.clone()).computed_rect.h, vs::CHIP_HEIGHT);
             assert_eq!(c.radius.tl, vs::RADIUS);
             assert_eq!(c.width, Size::Hug);
         }
+
+        // The plain chip is set at caption's regular face; a tinted one
+        // goes semibold, because that is what the `Solid` tint does to
+        // everything that wears it. Deliberate, and only reachable now
+        // that the chip is one node instead of a box around a text leaf
+        // the modifier could not touch.
+        assert_eq!(chip("2").font_weight, FontWeight::Regular);
+        assert_eq!(chip("2").destructive().font_weight, FontWeight::Semibold);
 
         // `.muted()` is the quiet rung: a neutral surface, not a tint.
         let m = chip("2").muted();
@@ -682,7 +773,7 @@ mod tests {
                 chip("2").destructive(),
             ] {
                 let fill = p.resolve(c.fill.unwrap());
-                let label = p.resolve(c.children[0].text_color.unwrap());
+                let label = p.resolve(c.text_color.unwrap());
                 let ratio = contrast(label, fill);
                 assert!(
                     ratio >= 3.0,
@@ -840,6 +931,27 @@ mod tests {
         assert_eq!(r.fill.and_then(|c| c.token), Some("border"));
     }
 
+    #[test]
+    fn the_hairlines_are_the_stock_separators_under_another_name() {
+        // The dedup, pinned on both axes: these recipes delegate, so
+        // the two vocabularies cannot describe two different rules. If
+        // core re-tunes `separator()`, the workbench name follows
+        // instead of forking.
+        use damascene_core::widgets::separator::{separator, vertical_separator};
+
+        for (alias, stock) in [
+            (hairline(), separator()),
+            (vertical_hairline(), vertical_separator()),
+        ] {
+            assert_eq!(alias.kind, stock.kind);
+            assert_eq!(alias.width, stock.width);
+            assert_eq!(alias.height, stock.height);
+            assert_eq!(alias.fill, stock.fill);
+        }
+        // And the thickness both land on is the one this crate names.
+        assert_eq!(hairline().height, Size::Fixed(vs::HAIRLINE));
+        assert_eq!(vertical_hairline().width, Size::Fixed(vs::HAIRLINE));
+    }
 
     #[test]
     fn vertical_hairline_is_hairline_turned_on_its_side() {
@@ -864,6 +976,7 @@ mod tests {
         // paint at all. Documented on both recipes; measured here so
         // the doc cannot rot into a wrong claim.
         use damascene_core::bundle::artifact::render_bundle_themed;
+        use damascene_core::bundle::lint::FindingKind;
 
         let laid_out = |align: Align| {
             let mut root = column([text("a").caption(), hairline(), text("b").caption()])
@@ -871,32 +984,55 @@ mod tests {
                 .padding(20.0)
                 .width(Size::Fill(1.0))
                 .height(Size::Fill(1.0));
-            render_bundle_themed(
+            let bundle = render_bundle_themed(
                 &mut root,
                 Rect::new(0.0, 0.0, 400.0, 200.0),
                 &crate::theme::theme(),
             );
-            root
+            (root, bundle)
         };
 
-        let stretched = laid_out(Align::Stretch);
-        let bundle = damascene_core::bundle::inspect::dump_tree(
+        let collapse_findings = |b: &damascene_core::bundle::artifact::Bundle| {
+            b.lint
+                .findings
+                .iter()
+                .filter(|f| f.kind == FindingKind::CollapsedFillCrossAxis)
+                .count()
+        };
+
+        let (stretched, stretched_bundle) = laid_out(Align::Stretch);
+        let dump = damascene_core::bundle::inspect::dump_tree(
             &stretched,
             &damascene_core::state::UiState::default(),
         );
         assert!(
-            bundle.contains("rect=(20,35,360,1)"),
-            "a stretched column gives the rule the content box:\n{bundle}"
+            dump.contains("rect=(20,35,360,1)"),
+            "a stretched column gives the rule the content box:\n{dump}"
+        );
+        assert_eq!(
+            collapse_findings(&stretched_bundle),
+            0,
+            "a painting rule is not a lint finding:\n{}",
+            stretched_bundle.lint.text()
         );
 
-        let started = laid_out(Align::Start);
-        let bundle = damascene_core::bundle::inspect::dump_tree(
+        let (started, started_bundle) = laid_out(Align::Start);
+        let dump = damascene_core::bundle::inspect::dump_tree(
             &started,
             &damascene_core::state::UiState::default(),
         );
         assert!(
-            bundle.contains("rect=(20,35,0,1)"),
-            "a hugging column collapses the rule to zero width:\n{bundle}"
+            dump.contains("rect=(20,35,0,1)"),
+            "a hugging column collapses the rule to zero width:\n{dump}"
+        );
+        // The silent half of the failure is what the lint exists for:
+        // nothing overflows and nothing errors, so without a finding
+        // the only signal is a rule that isn't there.
+        assert_eq!(
+            collapse_findings(&started_bundle),
+            1,
+            "the collapsed rule must be reported:\n{}",
+            started_bundle.lint.text()
         );
     }
 

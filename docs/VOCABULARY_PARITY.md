@@ -513,6 +513,48 @@ Regression tests: `type_scale_scales_roles_rungs_and_line_heights`,
 
 ## Rejected: container density / size props
 
+> **Partially reversed 2026-07-28 — read this box before the section
+> below.** Table *cell padding* now rides `ComponentSize`
+> (`metrics::table_cell_metrics`), so
+> `Theme::with_default_component_size` densifies tables along with
+> every control. What stays rejected is unchanged and is the larger
+> half: **no per-role container size prop** — there is no
+> `with_table_size`, no `with_list_size`, no `with_menu_size` — and no
+> global density knob. The reversal is one metric on the *existing*
+> theme-wide rung, not a new knob.
+>
+> What reopened it: the ratified workbench emulation target
+> (`WORKBENCH_VISION.md`) shipped, and its reference corpus put a number
+> on the gap this section waved at. `references/workbench-validation/
+> parts/index.html` declares `tbody tr { height: 28px }` and renders at a
+> 30px pitch; a stock damascene table under `damascene_workbench::theme`
+> measured **35.57px**. Both damascene-side validation apps
+> (`examples/parts.rs`, `examples/parts_v2.rs`) independently converged
+> on the same workaround — a local `ROW_PAD_Y = 5.0` re-padding every
+> cell and every head — which is this section's own "per-cell
+> `.padding()` works but is verbose" residue showing up as measured
+> duplication rather than as a hypothetical.
+>
+> The design deliberately does **not** relocate the knob per role:
+> - The metric is derived, not picked. A row's content box is the rung's
+>   *control height* (`Md` → 36px, which is exactly the
+>   `Sides::xy(SPACE_3, SPACE_2)` the constructors hardcoded, so shadcn's
+>   own rung is bit-identical to the pre-ladder library). A table is
+>   therefore as dense as the buttons and inputs beside it, which is the
+>   thing an agent means by "densify the app".
+> - The implementation is the child-rewriting path this section
+>   predicted (`apply_table_cell_padding`, precedent
+>   `apply_tab_trigger_size_to_children`), not new cell roles.
+> - `.padding()` / `.py()` on a cell still wins, so the escape hatch the
+>   section defended is intact — `examples/parts_match.rs`, a pixel-match
+>   reproduction, is untouched by the change.
+>
+> Still live from the section below: shadcn genuinely has no `size` prop
+> on Table, so `.size()` on a table row is damascene vocabulary, not
+> parity — it is documented as such and is not the primary path. The
+> "lint `.size()` on a role that ignores it" residue also survives, minus
+> the two table row roles, which now read it.
+
 The original form was a global density knob. `metrics.rs:5-8` documents
 the decision not to have one, and that decision is **correct** under the
 acceptance test: shadcn has no density knob, so an agent does not expect
@@ -591,6 +633,10 @@ inversions through core knobs.
 
 Container size props: dropped. If the dead `.size()` is a concern, lint
 it.
+
+**Amended 2026-07-28:** table cell padding joined the `ComponentSize`
+ladder — see the box at the head of the rejection section. Per-role
+container size props stay dropped.
 
 Driving consumer for everything above: `WORKBENCH_VISION.md` (ratified
 2026-07-25), the workbench opinion crate that supersedes the Carbon

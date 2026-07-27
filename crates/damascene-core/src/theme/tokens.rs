@@ -98,8 +98,11 @@ pub const WARNING: Color = Color::srgb_token("warning", 245, 158, 11, 255);
 pub const WARNING_FOREGROUND: Color = Color::srgb_token("warning-foreground", 69, 26, 3, 255);
 /// Informational status color — applied by `.info()`.
 pub const INFO: Color = Color::srgb_token("info", 59, 130, 246, 255);
-/// Text color on solid [`INFO`] fills.
-pub const INFO_FOREGROUND: Color = Color::srgb_token("info-foreground", 239, 246, 255, 255);
+/// Text color on solid [`INFO`] fills. Dark, not near-white: blue-500
+/// is a step engineered for ~3:1 against white, so the light label
+/// measured 3.38:1 on it. See "Picking a status `*-foreground`" in
+/// [`crate::theme::palette`].
+pub const INFO_FOREGROUND: Color = Color::srgb_token("info-foreground", 12, 18, 42, 255);
 
 // Extension colors. These remain semantic, but they describe a specific
 // component/domain rather than the reusable shadcn core palette.

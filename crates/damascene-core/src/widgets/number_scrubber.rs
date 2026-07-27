@@ -318,6 +318,7 @@ mod tests {
                 rect: Rect::new(0.0, 0.0, MIN_WIDTH, tokens::CONTROL_HEIGHT),
                 tooltip: None,
                 scroll_offset_y: 0.0,
+                content_inset: Sides::zero(),
             }),
             pointer: Some((x, tokens::CONTROL_HEIGHT * 0.5)),
             key_press: None,
@@ -341,6 +342,7 @@ mod tests {
                 rect: Rect::new(0.0, 0.0, MIN_WIDTH, tokens::CONTROL_HEIGHT),
                 tooltip: None,
                 scroll_offset_y: 0.0,
+                content_inset: Sides::zero(),
             }),
             pointer: None,
             key_press: Some(KeyPress {

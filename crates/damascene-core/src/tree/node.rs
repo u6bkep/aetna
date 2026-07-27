@@ -78,10 +78,12 @@ pub struct El {
     /// per-node state survives rebuilds; the layout pass folds it into
     /// the path-based [`Self::computed_id`].
     pub key: Option<String>,
-    /// Accessibility semantics — today just the accessible name, boxed
-    /// so the overwhelming majority of Els (which carry none) pay one
-    /// pointer. Read through [`Self::accessible_name`]; set through
-    /// [`name`][method@Self::name]. See [`Semantics`].
+    /// Human-readable labelling — the accessible name and the tooltip
+    /// text — boxed so the overwhelming majority of Els (which carry
+    /// neither) pay one pointer. Read through
+    /// [`Self::accessible_name`] / [`Self::tooltip_text`]; set through
+    /// [`name`][method@Self::name] / [`tooltip`][method@Self::tooltip].
+    /// See [`Semantics`].
     pub semantics: Option<Box<Semantics>>,
     /// Claim every pointer event inside this node's painted rect so
     /// clicks (and scroll routing) don't fall through to lower layers.
@@ -113,6 +115,22 @@ pub struct El {
     /// "this surface is now the active editing target" affordance even
     /// when activated by mouse, beyond what the caret alone shows.
     pub always_show_focus_ring: bool,
+    /// Paint this node's stock focus ring when the focused node is one
+    /// of its **descendants** (CSS `:focus-within`, per
+    /// `docs/NAMING_ORACLE.md`'s web-platform row). The nearest flagged
+    /// ancestor of the focused node claims the ring — its ring envelope
+    /// animates exactly like a focused node's own, and the focused
+    /// descendant's ring paint is suppressed under any flagged ancestor
+    /// so exactly one ring shows. Everything else the focus envelope
+    /// drives on the descendant (caret fade, `dim_fill` saturation) is
+    /// untouched. The flagged node needs no `.key(...)` and is usually
+    /// not focusable itself; ring gating follows the flagged node's own
+    /// policy (`focus_visible` or [`Self::always_show_focus_ring`]),
+    /// and [`Self::focus_ring_placement`] / [`Self::paint_overflow`]
+    /// apply as on a focused node. Used by `input_group` so focusing
+    /// the de-chromed inner input lights the group trough. Set via
+    /// [`Self::focus_within`].
+    pub focus_within: bool,
     /// When true, this node is a pointer target for the library's
     /// text-selection manager: pointer-down inside its rect starts (or
     /// extends) the global [`crate::selection::Selection`] anchored at
@@ -436,19 +454,6 @@ pub struct El {
     ///
     /// [`ArrowNav::Grid`]: crate::tree::ArrowNav::Grid
     pub arrow_nav: Option<crate::tree::ArrowNav>,
-    /// Tooltip text. When set, the runtime synthesizes a hover-driven
-    /// tooltip layer anchored to this node — appearing after the
-    /// hover delay elapses, fading in with the standard envelope, and
-    /// dismissed when the pointer leaves or presses the node.
-    ///
-    /// Two preconditions, both lint-checked — see
-    /// [`tooltip`][method@Self::tooltip] for the full contract and the
-    /// one-line fixes. The trigger needs its own [`Self::key`] (only
-    /// keyed nodes are hit-test targets, so an unkeyed carrier is
-    /// silently dead), and the `App::build` root must be an
-    /// `Axis::Overlay` container for the synthesized layer to mount
-    /// on. Focusability is *not* required.
-    pub tooltip: Option<String>,
     /// Pointer cursor declared for this element. `None` falls through
     /// to whatever an ancestor declared, else [`crate::cursor::Cursor::Default`].
     /// Resolution lives in [`crate::state::UiState::cursor`]: if a
@@ -798,27 +803,28 @@ pub struct El {
 // pointer belongs in it; the `border` instruction above still stands
 // on its own terms.
 //
-// Measured, not assumed: 776 was exactly saturated before this field
-// (an added `Option<Box<str>>`, 16 bytes, put it at 792), so the
-// ceiling below is tight at 784 and the next new field will trip it.
+// Measured, not assumed: 776 was exactly saturated before that field
+// (an added `Option<Box<str>>`, 16 bytes, put it at 792).
 //
-// The fold that would have made this free — and would still make the
-// *next* one free — is `tooltip` (24 bytes, inline, rarely set, and
-// the same species as `name`: a short human-readable label). Moving
-// it into `Semantics` takes El to 760. Not done here because
-// `El::tooltip` is a public field with ~13 read sites, so it is a
-// deliberate refactor rather than a side effect of adding a name.
+// 784 -> 760: the fold that `semantics` was designed to make possible
+// — `tooltip` (24 bytes, inline, rarely set, and the same species as
+// `name`: a short human-readable label) moved into `Semantics`. The
+// public field became the [`El::tooltip_text`] accessor; `.tooltip()`
+// is unchanged. This is the group paying for itself, and it is the
+// pattern to repeat: the next human-readable-label field belongs in
+// `Semantics` for free rather than as another 16-24 inline bytes.
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(std::mem::size_of::<El>() <= 784);
+const _: () = assert!(std::mem::size_of::<El>() <= 760);
 
-/// Accessibility semantics, boxed together on [`El::semantics`] so the
-/// common El — which has no accessible name because its visible text
-/// already names it — pays one pointer.
+/// Human-readable labelling, boxed together on [`El::semantics`] so
+/// the common El — which has no accessible name because its visible
+/// text already names it, and no tooltip — pays one pointer.
 ///
-/// Deliberately a group with one field today. Damascene has no
-/// platform accessibility bridge; when one lands it needs role,
-/// description, and value text alongside the name, and this is where
-/// they go without touching [`El`]'s size budget again.
+/// Two fields today, both short human-readable strings about the node:
+/// the accessible name and the tooltip text. Damascene has no platform
+/// accessibility bridge; when one lands it needs role, description,
+/// and value text alongside these, and this is where they go without
+/// touching [`El`]'s size budget again.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct Semantics {
@@ -828,18 +834,34 @@ pub struct Semantics {
     /// the node, in the sense of `aria-label` / `alt`.
     ///
     /// Distinct from [`El::key`] (a machine identity for state lookup,
-    /// never shown to a person) and from
-    /// [`tooltip`][field@El::tooltip] (a hover affordance with timing,
-    /// layout, and an overlay-root requirement, which a name pairs
-    /// with but does not replace). A name has no visual or timing
-    /// behavior at all: it is carried on the node and printed by
-    /// inspection artifacts ([`crate::bundle::inspect::dump_tree`]) so
-    /// headless review — and any future accessibility bridge — can
-    /// read what a graphic control is called.
+    /// never shown to a person) and from [`Self::tooltip`] (a hover
+    /// affordance with timing, layout, and an overlay-root
+    /// requirement, which a name pairs with but does not replace). A
+    /// name has no visual or timing behavior at all: it is carried on
+    /// the node and printed by inspection artifacts
+    /// ([`crate::bundle::inspect::dump_tree`]) so headless review —
+    /// and any future accessibility bridge — can read what a graphic
+    /// control is called.
     ///
     /// Set via [`name`][method@El::name]; read via
     /// [`El::accessible_name`].
     pub name: Option<String>,
+    /// Tooltip text. When set, the runtime synthesizes a hover-driven
+    /// tooltip layer anchored to the node — appearing after the hover
+    /// delay elapses, fading in with the standard envelope, and
+    /// dismissed when the pointer leaves or presses the node.
+    ///
+    /// Two preconditions, both lint-checked — see
+    /// [`tooltip`][method@El::tooltip] for the full contract and the
+    /// one-line fixes. The trigger needs its own [`El::key`] (only
+    /// keyed nodes are hit-test targets, so an unkeyed carrier is
+    /// silently dead), and the `App::build` root must be an
+    /// `Axis::Overlay` container for the synthesized layer to mount
+    /// on. Focusability is *not* required.
+    ///
+    /// Set via [`tooltip`][method@El::tooltip]; read via
+    /// [`El::tooltip_text`].
+    pub tooltip: Option<String>,
 }
 
 /// Motion opt-ins, boxed together on [`El::motion`] so the common
@@ -888,6 +910,12 @@ impl El {
     /// [`Semantics::name`].
     pub fn accessible_name(&self) -> Option<&str> {
         self.semantics.as_deref().and_then(|s| s.name.as_deref())
+    }
+
+    /// The tooltip text, if set via [`tooltip`][method@El::tooltip].
+    /// See [`Semantics::tooltip`].
+    pub fn tooltip_text(&self) -> Option<&str> {
+        self.semantics.as_deref().and_then(|s| s.tooltip.as_deref())
     }
 
     /// The content-box inset: [`El::padding`] plus per-side border

@@ -43,6 +43,14 @@ fn dump_node(n: &El, ui_state: &UiState, depth: usize, s: &mut String) {
     if let Some(name) = n.accessible_name() {
         let _ = write!(s, " name={name:?}");
     }
+    // Tooltip text (`El::tooltip`) — the other human-readable label a
+    // node can carry, and one that is otherwise invisible headlessly
+    // (it only ever paints into a hover-synthesized layer). Sits next
+    // to `name=` because reviewers read the two together: a name and a
+    // tooltip on the same icon-only control should not contradict.
+    if let Some(tooltip) = n.tooltip_text() {
+        let _ = write!(s, " tooltip={tooltip:?}");
+    }
     let state = ui_state.node_state(&n.computed_id);
     if !matches!(state, InteractionState::Default) {
         let _ = write!(s, " state={state:?}");
@@ -211,6 +219,31 @@ mod tests {
         );
     }
 
+    /// Tooltips only ever paint into a layer the runtime synthesizes on
+    /// hover, so without a dump column they are invisible to headless
+    /// review — the artifact would show an icon button and no hint that
+    /// it explains itself. Same absent-by-default rule as `name=`.
+    #[test]
+    fn dump_surfaces_tooltip_text() {
+        let mut tree = crate::row([
+            icon_button("settings").key("prefs").tooltip("Preferences"),
+            icon_button("bell").key("alerts"),
+        ]);
+        let mut state = UiState::new();
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 100.0));
+        let dump = dump_tree(&tree, &state);
+
+        assert!(
+            dump.contains(r#"tooltip="Preferences""#),
+            "expected the tooltip text in the dump, got:\n{dump}"
+        );
+        assert_eq!(
+            dump.matches("tooltip=").count(),
+            1,
+            "the untipped button should print no tooltip column, got:\n{dump}"
+        );
+    }
+
     /// `.name()` is stored verbatim on the node — a modifier, not a
     /// derived value.
     #[test]
@@ -223,7 +256,7 @@ mod tests {
         let el = icon_button("git-branch").key("branch").name("Switch branch");
         assert_eq!(el.key.as_deref(), Some("branch"));
         assert_eq!(el.accessible_name(), Some("Switch branch"));
-        assert_eq!(el.tooltip.as_deref(), None);
+        assert_eq!(el.tooltip_text(), None);
         // No name, no allocation.
         assert!(icon_button("bell").semantics.is_none());
         assert_eq!(icon_button("bell").accessible_name(), None);
