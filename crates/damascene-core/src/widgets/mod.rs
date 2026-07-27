@@ -15,7 +15,7 @@
 //! **Object rows & lists**
 //! - [`item`] — clickable resource row (recent file, repo, project, person, asset entry); `item([item_media_icon, item_content([item_title, item_description]), item_actions([...])])` inside `item_group([...])`
 //! - [`list`] — plain `bullet_list` / `numbered_list` / `task_list` for prose-style enumerations
-//! - [`table`] — structured tabular data; `table([table_header([table_row([table_head(...)])]), table_body([...])])`
+//! - [`table`] — structured tabular data; `table([table_header([table_row([table_head(...)])]), table_body([...])])`. Proportioned/aligned columns come from one shared `&[TableColumn]` spec via `table_header_cells(COLS, [...])` + `table_row_cells(key, COLS, [...])`; rows are `.focusable()`-safe (inside focus ring)
 //! - [`accordion`] — collapsible section; `accordion_item("group", "key", "Title", open, [...])` + `accordion::apply_event`
 //!
 //! **Navigation**
@@ -26,6 +26,7 @@
 //! - [`pagination`] — `pagination_content([pagination_previous(), pagination_link(...), pagination_next()])`
 //! - [`dropdown_menu`] — `dropdown_menu(key, trigger, [dropdown_menu_item_with_shortcut(...)])`; collapses per-row `[Edit][Delete]` button pairs
 //! - [`command`] — palette / menu rows with icon + label + shortcut; `command_row(...)` / `command_item(...)`
+//! - [`tree`] — flat tree view (VS Code explorer / channel roster shape); `tree([tree_item_with(key, depth, label, TreeItemOpts::default().expanded(true).trailing(...)), tree_item(key, depth + 1, label)])`; app owns expansion, rows take `.selected()` / `.current()`
 //!
 //! **Inputs & forms**
 //! - [`calendar`] — controlled date grid; `calendar_month(key, "May 2026", days)` + `calendar::apply_event`
@@ -125,3 +126,4 @@ pub mod text_area;
 pub mod text_input;
 pub mod toggle;
 pub mod toolbar;
+pub mod tree;

@@ -48,6 +48,18 @@ name itself differs.
   scheduled work, not drift.
 - A divergence discovered later is a finding, not a taste debate:
   either rename (pre-1.0), alias, or record why the oracle loses.
+- Where shadcn's own component is a **recipe over a headless library**
+  (its `DataTable` is TanStack Table wired to the `Table` primitives),
+  the recipe's vocabulary is the oracle for the part we ship, and the
+  citation names both. Hoisting the geometry half of a recipe without
+  its state half is a legitimate move — it is recorded as such rather
+  than renamed to avoid the collision.
+
+### Recorded citations
+
+| our name | oracle | note |
+|---|---|---|
+| `TableColumn` (`width`, `align`, `fill`/`fixed`/`align_end`) | TanStack Table / shadcn `DataTable`'s **`columns`** array | The corpus-dominant name for "one positional spec the header and every body row render from" — the thing four validation agents re-minted as a local `cell(content, weight)` / `head(label, weight)` pair. Deliberately **geometry-only**: no `sortingFn`, no `enableSorting`, no row-selection model, no accessors. A full `data_table` stays deferred per `docs/WORKBENCH_VISION.md` ("hoist the style-neutral skeleton when the second consumer actually lands"); `TableColumn` is the width/alignment slice of that skeleton, taken early because its absence was measured twice. `table_header_cells` / `table_row_cells` are ours — shadcn has no name for them, since on the web the `columns` array is consumed by `flexRender` rather than by a pair of constructors. |
 
 ## The metric
 
