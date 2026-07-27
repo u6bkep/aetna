@@ -89,6 +89,7 @@ pub use crate::widgets::breadcrumb::{
     breadcrumb_separator,
 };
 pub use crate::widgets::button::{button, button_with_icon, icon_button};
+pub use crate::widgets::button_group::button_group;
 pub use crate::widgets::calendar::{
     self, CalendarAction, CalendarDay, calendar_day_key, calendar_month,
 };
@@ -136,6 +137,7 @@ pub use crate::widgets::menubar::{
     menubar_item_with_shortcut, menubar_label, menubar_menu, menubar_separator, menubar_shortcut,
     menubar_trigger, menubar_trigger_key,
 };
+pub use crate::widgets::meter::{self, MeterOpts, meter, meter_with, meter_with_color};
 pub use crate::widgets::number_scrubber::{self, ScrubDrag, ScrubberOpts, number_scrubber};
 pub use crate::widgets::numeric_input::{self, NumericInputOpts, numeric_input};
 pub use crate::widgets::overlay::{modal, modal_panel, overlay, overlays, scrim};

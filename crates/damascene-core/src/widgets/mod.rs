@@ -46,6 +46,7 @@
 //! - [`alert`] — callouts; `alert([alert_title, alert_description]).warning() / .info() / .destructive()`
 //! - [`badge`] — status pill; `badge("Online").success() / .warning() / .destructive() / .info() / .muted() / .outline()`
 //! - [`progress`] — non-interactive value bar; `progress(value)`, also `progress_indeterminate()`
+//! - [`meter`] — instrumentation gauge (the web platform's `<meter>`, not shadcn); `meter(0.62)`, `meter_with(v, MeterOpts::default().low(0.6).high(0.85))`
 //! - [`spinner`] — loading indicator
 //! - [`skeleton`] — loading placeholder; `skeleton().width(...)` / `skeleton_circle(size)`
 //!
@@ -56,6 +57,7 @@
 //! - [`blockquote`] — quoted block
 //! - [`code_block`] — fenced code with optional chrome
 //! - [`button`] — `button(label)` / `button_with_icon(...)` / `icon_button(...)`; `.primary()` / `.secondary()` / `.ghost()` / `.destructive()`
+//! - [`button_group`] — joins adjacent controls into one segmented control (split buttons, icon-button clusters); `button_group([button(...), icon_button(...)])`
 //!
 //! **Structural primitives**
 //! - [`separator`] — `separator()` / `vertical_separator()` (1px line, content-aware)
@@ -81,6 +83,7 @@ pub mod badge;
 pub mod blockquote;
 pub mod breadcrumb;
 pub mod button;
+pub mod button_group;
 pub mod calendar;
 pub mod card;
 pub mod checkbox;
@@ -97,6 +100,7 @@ pub mod item;
 pub mod kbd;
 pub mod list;
 pub mod menubar;
+pub mod meter;
 pub mod number_scrubber;
 pub mod numeric_input;
 pub mod overlay;

@@ -204,6 +204,7 @@ pub use widgets::breadcrumb::{
     breadcrumb_separator,
 };
 pub use widgets::button::{button, button_with_icon, icon_button};
+pub use widgets::button_group::button_group;
 pub use widgets::calendar::{CalendarAction, CalendarDay, calendar_day_key, calendar_month};
 pub use widgets::card::{
     card, card_content, card_description, card_footer, card_header, card_title, titled_card,
@@ -246,6 +247,7 @@ pub use widgets::menubar::{
     menubar_item_with_shortcut, menubar_label, menubar_menu, menubar_separator, menubar_shortcut,
     menubar_trigger, menubar_trigger_key,
 };
+pub use widgets::meter::{MeterOpts, meter, meter_with, meter_with_color};
 pub use widgets::number_scrubber::{ScrubDrag, ScrubberOpts, number_scrubber};
 pub use widgets::numeric_input::{NumericInputOpts, numeric_input};
 pub use widgets::overlay::{modal, modal_panel, overlay, overlays, scrim};
