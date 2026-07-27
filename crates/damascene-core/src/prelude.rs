@@ -82,7 +82,7 @@ pub use crate::widgets::alert::{alert, alert_description, alert_title};
 pub use crate::widgets::avatar::{
     DEFAULT_AVATAR_SIZE, avatar_fallback, avatar_image, avatar_initials,
 };
-pub use crate::widgets::badge::badge;
+pub use crate::widgets::badge::{STATUS_DOT_SIZE, badge, status_dot};
 pub use crate::widgets::blockquote::blockquote;
 pub use crate::widgets::breadcrumb::{
     breadcrumb, breadcrumb_item, breadcrumb_link, breadcrumb_list, breadcrumb_page,
@@ -172,6 +172,9 @@ pub use crate::widgets::sidebar::{
 pub use crate::widgets::skeleton::{self, skeleton, skeleton_circle};
 pub use crate::widgets::slider::{self, SliderAction, slider, slider_with_color};
 pub use crate::widgets::spinner::{self, spinner, spinner_with_color, spinner_with_track};
+pub use crate::widgets::swatch::{
+    COLOR_SWATCH_RING_OFFSET, COLOR_SWATCH_RING_WIDTH, COLOR_SWATCH_SIZE, color_swatch,
+};
 pub use crate::widgets::switch::{self, switch};
 pub use crate::widgets::table::{
     self, TableColumn, table, table_body, table_cell, table_head, table_head_el, table_header,

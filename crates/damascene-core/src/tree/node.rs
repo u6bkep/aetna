@@ -445,9 +445,15 @@ pub struct El {
     /// Tooltip text. When set, the runtime synthesizes a hover-driven
     /// tooltip layer anchored to this node — appearing after the
     /// hover delay elapses, fading in with the standard envelope, and
-    /// dismissed when the pointer leaves or presses the node. The
-    /// trigger doesn't have to be focusable or keyed; the runtime
-    /// anchors the tooltip via the trigger's `computed_id`.
+    /// dismissed when the pointer leaves or presses the node.
+    ///
+    /// Two preconditions, both lint-checked — see
+    /// [`tooltip`][method@Self::tooltip] for the full contract and the
+    /// one-line fixes. The trigger needs its own [`Self::key`] (only
+    /// keyed nodes are hit-test targets, so an unkeyed carrier is
+    /// silently dead), and the `App::build` root must be an
+    /// `Axis::Overlay` container for the synthesized layer to mount
+    /// on. Focusability is *not* required.
     pub tooltip: Option<String>,
     /// Pointer cursor declared for this element. `None` falls through
     /// to whatever an ancestor declared, else [`crate::cursor::Cursor::Default`].
@@ -812,6 +818,13 @@ pub struct El {
 // single bool, but 784 was exactly saturated — the flag words were
 // full — so it costs a whole alignment word. The next flag is free
 // again; the next *field* is not.
+//
+// The accessible name this arc wanted costs nothing further: it lives
+// in the `a11y` group above, as `A11yProps::label`, set by
+// `El::aria_label`. The fold that would buy the *next* new field back
+// is `tooltip` (24 bytes, inline, rarely set, and the same species as
+// a label) — moving it into `A11yProps` takes El to 768. Not done
+// here because `El::tooltip` is a public field with ~13 read sites.
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(std::mem::size_of::<El>() <= 792);
 
@@ -855,6 +868,16 @@ impl El {
     /// The enter transition, if set via [`El::enter_transition`].
     pub fn enter_spec(&self) -> Option<&crate::anim::EnterTransition> {
         self.motion.as_deref().and_then(|m| m.enter.as_ref())
+    }
+
+    /// The explicitly declared accessible name — what
+    /// [`aria_label`][method@El::aria_label] (or
+    /// [`alt`][method@El::alt]) put on this node, before the accname
+    /// fallbacks to visible text and tooltip that
+    /// `crate::a11y::accessible_name` applies. Used by the inspection
+    /// dump, which wants the authored label or nothing.
+    pub fn declared_label(&self) -> Option<&str> {
+        self.a11y.as_deref().and_then(|p| p.label.as_deref())
     }
 
     /// The content-box inset: [`El::padding`] plus per-side border

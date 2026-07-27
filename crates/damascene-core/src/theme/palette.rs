@@ -137,6 +137,14 @@ pub struct Palette {
     /// Hyperlink text color — backs the `link-foreground` token.
     pub link_foreground: Color,
 
+    /// Solid instrument-chip material — backs the `badge` token. See
+    /// the "Picking a `badge`" section on this impl for how each stock
+    /// variant's value is chosen.
+    pub badge: Color,
+    /// Text/icon color on a solid [`Palette::badge`] fill — backs the
+    /// `badge-foreground` token.
+    pub badge_foreground: Color,
+
     /// Idle scrollbar thumb fill — backs the `scrollbar-thumb` token.
     pub scrollbar_thumb_fill: Color,
     /// Hovered/dragged scrollbar thumb fill — backs the `scrollbar-thumb-active` token.
@@ -155,6 +163,33 @@ pub struct Palette {
 }
 
 impl Palette {
+    // ---- Picking a `badge` -------------------------------------------
+    //
+    // [`crate::tokens::BADGE`] is the solid instrument-chip material.
+    // Its one job is to be *notably* offset from every surface in the
+    // ramp: VS Code's `badge.background` (`#616161`) sits 2.9:1 above
+    // its `#181818` chrome and 2.7:1 above its `#1F1F1F` editor, which
+    // is what makes a count chip read as an object on the panel rather
+    // than a slightly different patch of panel. A chip pointed at a
+    // near-surface slot is the failure mode this slot exists to end:
+    // the workbench theme used to paint chips in `secondary`, measured
+    // at **1.11:1** over `card` — invisible.
+    //
+    // Every stock variant therefore takes its **neutral ramp's solid
+    // step** — Radix step 9, zinc-500 for the shadcn ramp. That is the
+    // step each ramp already designates for opaque non-text fills, and
+    // (not by accident) the same value each palette already spends on
+    // `scrollbar-thumb`, the other opaque neutral in the vocabulary.
+    // Neutral, not accent: a chip is instrumentation, and the accent is
+    // spent sparsely elsewhere.
+    //
+    // `badge_foreground` is then whichever end of the ramp wins the
+    // contrast test against that fill — near-white on the dark
+    // variants, near-black on the light ones, where a light-mode step 9
+    // is too pale for white text. Measured ratios per variant are in
+    // each constructor's comment; every one clears 3:1 material over
+    // `card` and 4.5:1 label over the fill.
+
     /// Damascene's default dark palette, copied from shadcn/ui's zinc dark
     /// theme scaffold. These rgba values also serve as the compile-time
     /// fallback baked into the constants in [`crate::tokens`].
@@ -219,6 +254,12 @@ impl Palette {
 
             overlay_scrim: Color::srgb_token("overlay-scrim", 0, 0, 0, 204),
             link_foreground: Color::srgb_token("link-foreground", 96, 165, 250, 255),
+
+            // zinc-500 `#71717A` — 4.1:1 over `card`, the brightest
+            // chip step in the stock set because zinc's `card` is the
+            // darkest ground (`#09090B`). Label is zinc-50, 4.6:1.
+            badge: Color::srgb_token("badge", 113, 113, 122, 255),
+            badge_foreground: Color::srgb_token("badge-foreground", 250, 250, 250, 255),
 
             scrollbar_thumb_fill: Color::srgb_token("scrollbar-thumb", 113, 113, 122, 120),
             scrollbar_thumb_fill_active: Color::srgb_token(
@@ -287,6 +328,14 @@ impl Palette {
 
             overlay_scrim: Color::srgb_token("overlay-scrim", 0, 0, 0, 128),
             link_foreground: Color::srgb_token("link-foreground", 37, 99, 235, 255),
+
+            // The same zinc-500 step, now reading *dark* against white
+            // surfaces — 4.8:1 over `card`. zinc's mid step is dark
+            // enough that the near-white label still wins (4.6:1 vs
+            // 4.1:1 for zinc-950), so light and dark agree here where
+            // the Radix variants flip.
+            badge: Color::srgb_token("badge", 113, 113, 122, 255),
+            badge_foreground: Color::srgb_token("badge-foreground", 250, 250, 250, 255),
 
             scrollbar_thumb_fill: Color::srgb_token("scrollbar-thumb", 113, 113, 122, 90),
             scrollbar_thumb_fill_active: Color::srgb_token(
@@ -371,6 +420,12 @@ impl Palette {
             overlay_scrim: Color::srgb_token("overlay-scrim", 0, 0, 0, 204),
             link_foreground: Color::srgb_token("link-foreground", 112, 184, 255, 255),
 
+            // Radix slate-9 `#696E77` — the ramp's solid step, 3.4:1
+            // over `card` (`#18191B`) and 3.7:1 over `background`.
+            // Label is white, 5.1:1; slate-12 would only reach 4.4:1.
+            badge: Color::srgb_token("badge", 105, 110, 119, 255),
+            badge_foreground: Color::srgb_token("badge-foreground", 255, 255, 255, 255),
+
             scrollbar_thumb_fill: Color::srgb_token("scrollbar-thumb", 105, 110, 119, 120),
             scrollbar_thumb_fill_active: Color::srgb_token(
                 "scrollbar-thumb-active",
@@ -437,6 +492,13 @@ impl Palette {
 
             overlay_scrim: Color::srgb_token("overlay-scrim", 0, 0, 0, 128),
             link_foreground: Color::srgb_token("link-foreground", 13, 116, 206, 255),
+
+            // Radix slate light-9 `#8B8D98` — 3.3:1 over the white
+            // `card`. The direction flips here: a light-mode step 9 is
+            // too pale for white text (3.3:1), so the label takes the
+            // ramp's dark end (`foreground`, 5.0:1) instead.
+            badge: Color::srgb_token("badge", 139, 141, 152, 255),
+            badge_foreground: Color::srgb_token("badge-foreground", 28, 32, 36, 255),
 
             scrollbar_thumb_fill: Color::srgb_token("scrollbar-thumb", 139, 141, 152, 90),
             scrollbar_thumb_fill_active: Color::srgb_token(
@@ -530,6 +592,13 @@ impl Palette {
             overlay_scrim: Color::srgb_token("overlay-scrim", 0, 0, 0, 204),
             link_foreground: Color::srgb_token("link-foreground", 255, 202, 22, 255),
 
+            // Radix sand-9 `#6F6D66` — the warm neutral's solid step,
+            // 3.4:1 over `card`. Neutral rather than amber on purpose:
+            // a chip is instrumentation, and this ramp spends its
+            // luminous amber on `primary` alone. Label is white, 5.2:1.
+            badge: Color::srgb_token("badge", 111, 109, 102, 255),
+            badge_foreground: Color::srgb_token("badge-foreground", 255, 255, 255, 255),
+
             scrollbar_thumb_fill: Color::srgb_token("scrollbar-thumb", 111, 109, 102, 120),
             scrollbar_thumb_fill_active: Color::srgb_token(
                 "scrollbar-thumb-active",
@@ -596,6 +665,11 @@ impl Palette {
 
             overlay_scrim: Color::srgb_token("overlay-scrim", 0, 0, 0, 128),
             link_foreground: Color::srgb_token("link-foreground", 171, 100, 0, 255),
+
+            // Radix sand light-9 `#8D8D86` — 3.3:1 over the white
+            // `card`, dark label (4.9:1), same flip as slate light.
+            badge: Color::srgb_token("badge", 141, 141, 134, 255),
+            badge_foreground: Color::srgb_token("badge-foreground", 33, 32, 28, 255),
 
             scrollbar_thumb_fill: Color::srgb_token("scrollbar-thumb", 141, 141, 134, 90),
             scrollbar_thumb_fill_active: Color::srgb_token(
@@ -689,6 +763,12 @@ impl Palette {
             overlay_scrim: Color::srgb_token("overlay-scrim", 0, 0, 0, 204),
             link_foreground: Color::srgb_token("link-foreground", 186, 167, 255, 255),
 
+            // Radix mauve-9 `#6F6D78` — 3.5:1 over `card`, white
+            // label at 5.1:1. Neutral, not violet, for the same reason
+            // the sand variant stays neutral.
+            badge: Color::srgb_token("badge", 111, 109, 120, 255),
+            badge_foreground: Color::srgb_token("badge-foreground", 255, 255, 255, 255),
+
             scrollbar_thumb_fill: Color::srgb_token("scrollbar-thumb", 111, 109, 120, 120),
             scrollbar_thumb_fill_active: Color::srgb_token(
                 "scrollbar-thumb-active",
@@ -755,6 +835,11 @@ impl Palette {
 
             overlay_scrim: Color::srgb_token("overlay-scrim", 0, 0, 0, 128),
             link_foreground: Color::srgb_token("link-foreground", 101, 80, 185, 255),
+
+            // Radix mauve light-9 `#8E8C99` — 3.3:1 over the white
+            // `card`, dark label (4.9:1), same flip as slate light.
+            badge: Color::srgb_token("badge", 142, 140, 153, 255),
+            badge_foreground: Color::srgb_token("badge-foreground", 33, 31, 38, 255),
 
             scrollbar_thumb_fill: Color::srgb_token("scrollbar-thumb", 142, 140, 153, 90),
             scrollbar_thumb_fill_active: Color::srgb_token(
@@ -857,6 +942,8 @@ impl Palette {
             "info-tint-foreground" => self.info_tint_foreground,
             "overlay-scrim" => self.overlay_scrim,
             "link-foreground" => self.link_foreground,
+            "badge" => self.badge,
+            "badge-foreground" => self.badge_foreground,
             "scrollbar-thumb" => self.scrollbar_thumb_fill,
             "scrollbar-thumb-active" => self.scrollbar_thumb_fill_active,
             "selection-bg" => self.selection_bg,
@@ -915,6 +1002,8 @@ mod tests {
             tokens::INFO_FOREGROUND,
             tokens::OVERLAY_SCRIM,
             tokens::LINK_FOREGROUND,
+            tokens::BADGE,
+            tokens::BADGE_FOREGROUND,
             tokens::SCROLLBAR_THUMB_FILL,
             tokens::SCROLLBAR_THUMB_FILL_ACTIVE,
             tokens::SELECTION_BG,
@@ -1037,6 +1126,140 @@ mod tests {
         const LIGHT: Palette = Palette::damascene_light();
         assert_eq!(DARK.background, Palette::damascene_dark().background);
         assert!(LIGHT.extra.is_empty());
+    }
+
+    /// Every stock palette variant, named for assertion messages.
+    fn all_variants() -> [(&'static str, Palette); 8] {
+        [
+            ("damascene_dark", Palette::damascene_dark()),
+            ("damascene_light", Palette::damascene_light()),
+            ("radix_slate_blue_dark", Palette::radix_slate_blue_dark()),
+            ("radix_slate_blue_light", Palette::radix_slate_blue_light()),
+            ("radix_sand_amber_dark", Palette::radix_sand_amber_dark()),
+            ("radix_sand_amber_light", Palette::radix_sand_amber_light()),
+            ("radix_mauve_violet_dark", Palette::radix_mauve_violet_dark()),
+            (
+                "radix_mauve_violet_light",
+                Palette::radix_mauve_violet_light(),
+            ),
+        ]
+    }
+
+    /// WCAG 2.x relative luminance of an sRGB color.
+    fn luminance(c: Color) -> f32 {
+        let [r, g, b, _] = c.to_srgb_u8a();
+        let lin = |v: u8| {
+            let v = v as f32 / 255.0;
+            if v <= 0.04045 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    }
+
+    /// WCAG 2.x contrast ratio between two opaque sRGB colors.
+    fn contrast(a: Color, b: Color) -> f32 {
+        let (mut hi, mut lo) = (luminance(a), luminance(b));
+        if hi < lo {
+            std::mem::swap(&mut hi, &mut lo);
+        }
+        (hi + 0.05) / (lo + 0.05)
+    }
+
+    #[test]
+    fn badge_slot_is_filled_in_every_stock_variant() {
+        // The slot is only useful if a palette swap moves it, which
+        // requires every variant to have made a deliberate choice
+        // rather than inheriting one variant's grey.
+        for (name, p) in all_variants() {
+            assert_eq!(
+                p.lookup("badge"),
+                Some(p.badge),
+                "{name}: `badge` must resolve to its own slot"
+            );
+            assert_eq!(
+                p.lookup("badge-foreground"),
+                Some(p.badge_foreground),
+                "{name}: `badge-foreground` must resolve to its own slot"
+            );
+            // Opaque: this is a material, not a wash. A translucent
+            // entry would be erased by `resolve`, which takes alpha
+            // from the requesting color.
+            assert_eq!(p.badge.a, 1.0, "{name}: badge must be opaque");
+            assert_eq!(
+                p.badge_foreground.a, 1.0,
+                "{name}: badge-foreground must be opaque"
+            );
+        }
+    }
+
+    #[test]
+    fn badge_stands_off_every_surface_it_can_sit_on() {
+        // The point of the slot: a chip must read as an object on the
+        // panel. 3:1 is the WCAG non-text floor, and the value the
+        // workbench chip failed at 1.11:1 before this slot existed.
+        for (name, p) in all_variants() {
+            for (surface_name, surface) in [
+                ("background", p.background),
+                ("card", p.card),
+                ("popover", p.popover),
+            ] {
+                let ratio = contrast(p.badge, surface);
+                assert!(
+                    ratio >= 3.0,
+                    "{name}: badge vs {surface_name} is {ratio:.2}:1, under the 3:1 floor"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn badge_foreground_is_readable_on_the_badge_fill() {
+        // Chip labels are caption-sized, so the small-text floor (4.5)
+        // applies rather than the large-text one.
+        for (name, p) in all_variants() {
+            let ratio = contrast(p.badge_foreground, p.badge);
+            assert!(
+                ratio >= 4.5,
+                "{name}: badge-foreground on badge is {ratio:.2}:1, under the 4.5:1 floor"
+            );
+        }
+    }
+
+    #[test]
+    fn badge_is_the_neutral_ramp_step_the_scrollbar_thumb_already_uses() {
+        // Documented derivation, asserted so a future palette edit
+        // moves the pair together instead of drifting: both are the
+        // ramp's opaque neutral step, the thumb at partial alpha.
+        for (name, p) in all_variants() {
+            let thumb = p.scrollbar_thumb_fill;
+            assert_eq!(
+                (p.badge.r, p.badge.g, p.badge.b),
+                (thumb.r, thumb.g, thumb.b),
+                "{name}: badge must be the ramp's solid neutral step"
+            );
+            assert!(
+                thumb.a < 1.0,
+                "{name}: the thumb is the same step at partial alpha"
+            );
+        }
+    }
+
+    #[test]
+    fn badge_is_not_the_secondary_slot_it_used_to_borrow() {
+        // Regression guard for the acceptance complaint: the workbench
+        // theme pointed `badge.background` at `secondary`, a
+        // near-surface value that made chips invisible. If a variant
+        // ever collapses the two, chips go back to unreadable.
+        for (name, p) in all_variants() {
+            assert_ne!(
+                (p.badge.r, p.badge.g, p.badge.b),
+                (p.secondary.r, p.secondary.g, p.secondary.b),
+                "{name}: badge must not collapse onto secondary"
+            );
+        }
     }
 
     #[test]

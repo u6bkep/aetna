@@ -164,6 +164,23 @@ const BELL: &[IconStroke] = &[
     stroke(18.0, 8.0, 18.0, 17.0),
     stroke(10.0, 21.0, 14.0, 21.0),
 ];
+const BOX: &[IconStroke] = &[
+    stroke(21.0, 8.0, 20.0, 6.3),
+    stroke(20.0, 6.3, 13.0, 2.3),
+    stroke(13.0, 2.3, 11.0, 2.3),
+    stroke(11.0, 2.3, 4.0, 6.3),
+    stroke(4.0, 6.3, 3.0, 8.0),
+    stroke(3.0, 8.0, 3.0, 16.0),
+    stroke(3.0, 16.0, 4.0, 17.7),
+    stroke(4.0, 17.7, 11.0, 21.7),
+    stroke(11.0, 21.7, 13.0, 21.7),
+    stroke(13.0, 21.7, 20.0, 17.7),
+    stroke(20.0, 17.7, 21.0, 16.0),
+    stroke(21.0, 16.0, 21.0, 8.0),
+    stroke(3.3, 7.0, 12.0, 12.0),
+    stroke(12.0, 12.0, 20.7, 7.0),
+    stroke(12.0, 22.0, 12.0, 12.0),
+];
 const CAMERA: &[IconStroke] = &[
     stroke(14.0, 4.0, 15.8, 5.1),
     stroke(15.8, 5.1, 16.2, 6.0),
@@ -264,6 +281,26 @@ const EXTERNAL_LINK: &[IconStroke] = &[
     stroke(3.0, 19.0, 3.0, 8.0),
     stroke(3.0, 8.0, 5.0, 6.0),
     stroke(5.0, 6.0, 11.0, 6.0),
+];
+const EYE: &[IconStroke] = &[
+    stroke(2.1, 11.7, 4.4, 8.2),
+    stroke(4.4, 8.2, 7.9, 5.8),
+    stroke(7.9, 5.8, 12.0, 5.0),
+    stroke(12.0, 5.0, 16.1, 5.8),
+    stroke(16.1, 5.8, 19.6, 8.2),
+    stroke(19.6, 8.2, 21.9, 11.7),
+    stroke(21.9, 11.7, 21.9, 12.3),
+    stroke(21.9, 12.3, 19.6, 15.8),
+    stroke(19.6, 15.8, 16.1, 18.2),
+    stroke(16.1, 18.2, 12.0, 19.0),
+    stroke(12.0, 19.0, 7.9, 18.2),
+    stroke(7.9, 18.2, 4.4, 15.8),
+    stroke(4.4, 15.8, 2.1, 12.3),
+    stroke(2.1, 12.3, 2.1, 11.7),
+    stroke(12.0, 9.0, 15.0, 12.0),
+    stroke(15.0, 12.0, 12.0, 15.0),
+    stroke(12.0, 15.0, 9.0, 12.0),
+    stroke(9.0, 12.0, 12.0, 9.0),
 ];
 const FILE_TEXT: &[IconStroke] = &[
     stroke(6.0, 3.0, 14.0, 3.0),
@@ -835,6 +872,7 @@ pub fn icon_strokes(name: IconName) -> &'static [IconStroke] {
         IconName::ArrowUp => ARROW_UP,
         IconName::BarChart => BAR_CHART,
         IconName::Bell => BELL,
+        IconName::Box => BOX,
         IconName::Camera => CAMERA,
         IconName::Check => CHECK,
         IconName::ChevronDown => CHEVRON_DOWN,
@@ -846,6 +884,7 @@ pub fn icon_strokes(name: IconName) -> &'static [IconStroke] {
         IconName::Contrast => CONTRAST,
         IconName::Download => DOWNLOAD,
         IconName::ExternalLink => EXTERNAL_LINK,
+        IconName::Eye => EYE,
         IconName::FileText => FILE_TEXT,
         IconName::FlipHorizontal => FLIP_HORIZONTAL,
         IconName::Folder => FOLDER,
@@ -908,6 +947,7 @@ pub fn all_icon_names() -> &'static [IconName] {
         IconName::ArrowUp,
         IconName::BarChart,
         IconName::Bell,
+        IconName::Box,
         IconName::Camera,
         IconName::Check,
         IconName::ChevronDown,
@@ -919,6 +959,7 @@ pub fn all_icon_names() -> &'static [IconName] {
         IconName::Contrast,
         IconName::Download,
         IconName::ExternalLink,
+        IconName::Eye,
         IconName::FileText,
         IconName::FlipHorizontal,
         IconName::Folder,
@@ -997,6 +1038,9 @@ pub fn icon_path(name: IconName) -> &'static str {
         IconName::Bell => {
             r#"<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>"#
         }
+        IconName::Box => {
+            r#"<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>"#
+        }
         IconName::Camera => {
             r#"<path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/>"#
         }
@@ -1017,6 +1061,9 @@ pub fn icon_path(name: IconName) -> &'static str {
         }
         IconName::ExternalLink => {
             r#"<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>"#
+        }
+        IconName::Eye => {
+            r#"<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>"#
         }
         IconName::FileText => {
             r#"<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M8 12h8"/><path d="M8 16h6"/>"#

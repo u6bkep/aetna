@@ -216,7 +216,42 @@ impl El {
     /// a floating tooltip layer when the pointer rests on the node for
     /// the configured delay.
     ///
-    /// **The node must also have a [`key`](Self::key).** Tooltips fire
+    /// # Two preconditions, both cheap
+    ///
+    /// **1. Your `App::build` root must be an overlay container.** The
+    /// synthesized layer is pushed as the root's *last child*, so it
+    /// only floats if the root stacks its children. Under a plain
+    /// `column`/`row` root it becomes an ordinary flow child that
+    /// steals main-axis space from your UI —
+    /// [`crate::tooltip::synthesize_tooltip`] `debug_assert`s on the
+    /// first hover to stop that reaching a release build. One line
+    /// fixes it — wrap whatever you already return:
+    ///
+    /// ```ignore
+    /// overlays(root, [])   // `root` = your existing build() value
+    /// ```
+    ///
+    /// `page([...])` and any `stack(...)` root already satisfy this.
+    /// The bundle lint catches it statically, at `render_bundle` time
+    /// rather than at first hover — and in a release build, where the
+    /// `debug_assert` is compiled out, the lint is the *only* warning
+    /// you get. It reports as
+    /// [`crate::bundle::lint::FindingKind::TooltipWithoutOverlayRoot`].
+    ///
+    /// Damascene does not auto-wrap the root. Wrapping is not free and
+    /// not invisible: it pushes every node one path segment deeper, so
+    /// every `computed_id` changes — and with them the scroll offsets,
+    /// focus, and animation state keyed by id. That is a fine cost to
+    /// opt into once, at a call you can see, and a bad one for the
+    /// library to impose silently on a tree that never asked.
+    ///
+    /// A full-bleed shell with no overlay root is *not* a reason to
+    /// drop tooltips from icon-only chrome — add the `overlays(...)`
+    /// root (it is layout-neutral), and reach for
+    /// [`aria_label`][method@Self::aria_label] as well, which labels a
+    /// graphic control with no root requirement at all.
+    ///
+    /// **2. The node must also have a [`key`](Self::key).** Tooltips fire
     /// through the hit-test pipeline, and `crate::hit_test` only
     /// returns keyed nodes — an unkeyed leaf with `.tooltip()` is
     /// silently dead, because hover skips past it to the nearest

@@ -197,7 +197,7 @@ pub use widgets::accordion::{
 };
 pub use widgets::alert::{alert, alert_description, alert_title};
 pub use widgets::avatar::{DEFAULT_AVATAR_SIZE, avatar_fallback, avatar_image, avatar_initials};
-pub use widgets::badge::badge;
+pub use widgets::badge::{STATUS_DOT_SIZE, badge, status_dot};
 pub use widgets::blockquote::blockquote;
 pub use widgets::breadcrumb::{
     breadcrumb, breadcrumb_item, breadcrumb_link, breadcrumb_list, breadcrumb_page,
@@ -276,6 +276,9 @@ pub use widgets::sidebar::{
 };
 pub use widgets::skeleton::{skeleton, skeleton_circle};
 pub use widgets::slider::{SliderAction, slider};
+pub use widgets::swatch::{
+    COLOR_SWATCH_RING_OFFSET, COLOR_SWATCH_RING_WIDTH, COLOR_SWATCH_SIZE, color_swatch,
+};
 pub use widgets::switch::switch;
 pub use widgets::table::{
     TableColumn, table, table_body, table_cell, table_head, table_head_el, table_header,

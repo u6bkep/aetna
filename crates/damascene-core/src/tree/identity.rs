@@ -200,6 +200,37 @@ impl El {
     /// content, which is right for `button("Save")` and wrong for an
     /// icon-only button; label those:
     /// `icon_button("x").aria_label("Close")`.
+    ///
+    /// # Not a key, not a tooltip
+    ///
+    /// - [`key`][method@Self::key] is a *machine* identity: it feeds
+    ///   `computed_id`, is never shown to a person, and is usually a
+    ///   slug (`"row:3.close"`). A label is prose (`"Close tab"`).
+    /// - `.tooltip(...)` is a *hover affordance*: it has a delay, it
+    ///   synthesizes a floating layer, and it requires an overlay root
+    ///   (see [`tooltip`][method@Self::tooltip]). A label has no
+    ///   visual or timing behavior at all and works on any root.
+    ///
+    /// The two pair naturally on icon-only chrome — the tooltip shows
+    /// the label to a pointer user, the ARIA label states it
+    /// unconditionally:
+    ///
+    /// ```ignore
+    /// icon_button("terminal").key("run").aria_label("Run").tooltip("Run (F5)")
+    /// ```
+    ///
+    /// Besides the AccessKit bridge, the label is printed by the
+    /// inspection dump ([`crate::bundle::inspect::dump_tree`], and so
+    /// the `{name}.tree.txt` bundle artifact) as `name="…"` — which is
+    /// what makes an icon-only control legible to headless review.
+    ///
+    /// Oracle note (`docs/NAMING_ORACLE.md`): the concept is the web
+    /// platform's *accessible name*, and the spelling follows the
+    /// platform attribute. `name` is the alias because it is what
+    /// agents reach for first (measured), but it is not the method:
+    /// HTML's own `name` attribute is a form-submission key, which is
+    /// what damascene calls [`key`][method@Self::key].
+    #[doc(alias = "name")]
     pub fn aria_label(mut self, label: impl Into<String>) -> Self {
         self.a11y_mut().label = Some(label.into());
         self
