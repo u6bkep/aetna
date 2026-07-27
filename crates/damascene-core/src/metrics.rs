@@ -1,10 +1,12 @@
 //! Component sizing vocabulary.
 //!
 //! Stock controls (button / input / badge / tab / choice / slider /
-//! progress) carry a t-shirt `size` that maps 1:1 to shadcn's `size`
-//! prop. Container surfaces (card / form / list / menu / table / panel)
-//! bake their padding / gap / height / radius recipes directly in their
-//! constructors — there is no global density knob, the way Tailwind /
+//! progress) carry a t-shirt `size`. `Xs` … `Lg` map 1:1 to shadcn's
+//! `size` prop; [`ComponentSize::Xxs`] extends the ladder one rung
+//! *below* shadcn for dense chrome strips, which the web genre has no
+//! prop for. Container surfaces (card / form / list / menu / table /
+//! panel) bake their padding / gap / height / radius recipes directly
+//! in their constructors — there is no global density knob, the way Tailwind /
 //! shadcn picks padding per component class.
 
 // Lock in full per-item documentation for this module (issue #73).
@@ -16,7 +18,64 @@ use crate::tree::{El, RadiusOrigin, Sides, Size};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[non_exhaustive]
 pub enum ComponentSize {
-    /// Extra small — densest scale (28 px control height).
+    /// Extra-extra small — the dense-chrome rung (22 px control
+    /// height). Below [`Xs`](Self::Xs), and below shadcn's ladder
+    /// entirely.
+    ///
+    /// # What it is for
+    ///
+    /// The strips a workbench frames its content with — title bars,
+    /// status bars, pane headers, toolbars — where the *whole strip* is
+    /// 22–30 px tall. An [`Xs`](Self::Xs) control is 28 px and simply
+    /// does not fit in one; `Xxs` is the rung that does. It is a chrome
+    /// rung, not an app baseline: reach for it per element
+    /// (`.size(ComponentSize::Xxs)`) or per role
+    /// ([`ThemeMetrics::with_button_size`]), not as a theme-wide default
+    /// (see [`ThemeMetrics::with_default_component_size`]).
+    ///
+    /// # Evidence
+    ///
+    /// Workbench validation (2026-07) found that agents building a 30 px
+    /// title bar could not place a 28 px `Xs` control in it and
+    /// hardcoded 22 px heights instead; the reference corpus measured
+    /// real chrome controls at 22–26 px, and even shadcn-fluent agents
+    /// reached for `h-7!`-style overrides. Both
+    /// `damascene_workbench::tokens::STATUS_BAR_HEIGHT` and
+    /// `PANE_HEADER_HEIGHT` are 22 px, which is where the control height
+    /// comes from: a chrome control is exactly as tall as the bar it
+    /// sits in, and 22 px clears a 30 px title strip with room for the
+    /// 2 px focus ring (`tokens::RING_WIDTH`) on both sides.
+    ///
+    /// # Derivation
+    ///
+    /// The control height is the measured 22 px. Every other value
+    /// continues the step this ladder already takes from `Sm` down to
+    /// `Xs`, so the rung's internal proportions are the ladder's, not a
+    /// fresh set of hand-picked numbers:
+    ///
+    /// | metric | `Sm` | `Xs` | `Xxs` | step |
+    /// |---|---|---|---|---|
+    /// | control height | 32 | 28 | **22** | pinned to the 22 px bar height |
+    /// | control padding-x | 10 | 8 | **6** | −2 |
+    /// | control radius | 6 | 5 | **4** | −1 |
+    /// | control gap | 6 | 4 | **2** | −2 |
+    /// | badge height | 20 | 18 | **16** | −2 |
+    /// | badge padding-x | 8 | 6 | **4** | −2 |
+    /// | choice box edge | 16 | 14 | **12** | −2 |
+    /// | switch track | 20 | 16 | **14** | −2; also keeps the +2 px it runs above the choice box at `Xs` |
+    /// | slider track | 16 | 14 | **12** | −2 |
+    /// | progress height | 6 | 4 | **2** | −2 |
+    ///
+    /// No type rung comes with it, because `Xs` introduces none either —
+    /// control heights and type density are separate knobs
+    /// ([`crate::Theme::with_type_scale`] is the type one). And one
+    /// deliberate *non*-continuation: [`MetricsRole::Input`]'s 10 px
+    /// horizontal-padding floor still applies, so an `Xxs` field is
+    /// 22 px tall but keeps a button-unlike 10 px text gutter — that
+    /// floor is about the caret, not about the rung.
+    Xxs,
+    /// Extra small — shadcn's densest rung (28 px control height). For
+    /// chrome denser than shadcn goes, see [`Xxs`](Self::Xxs).
     Xs,
     /// Small (32 px control height) — [`ThemeMetrics`]' baseline default.
     Sm,
@@ -95,13 +154,13 @@ pub enum MetricsRole {
     /// [`MetricsRole::TabTrigger`] children.
     TabList,
     /// Square checkbox / radio control box — width and height are set
-    /// to the scale's edge length (14–18 px).
+    /// to the scale's edge length (12–18 px).
     ChoiceControl,
     /// Checkbox / radio row — recipe baked in the constructor; the
     /// metrics pass only propagates an explicit [`ComponentSize`] down
     /// to the [`MetricsRole::ChoiceControl`] child.
     ChoiceItem,
-    /// Slider track — the metrics pass stamps the height (14–22 px)
+    /// Slider track — the metrics pass stamps the height (12–22 px)
     /// from the resolved [`ComponentSize`].
     Slider,
     /// Switch control — the metrics pass scales the whole track
@@ -109,7 +168,7 @@ pub enum MetricsRole {
     /// from the resolved [`ComponentSize`], governed by the same
     /// choice-size knob as checkbox / radio.
     Switch,
-    /// Progress bar — the metrics pass stamps the height (4–10 px)
+    /// Progress bar — the metrics pass stamps the height (2–10 px)
     /// from the resolved [`ComponentSize`].
     Progress,
 }
@@ -147,6 +206,14 @@ impl ThemeMetrics {
     /// Set the theme-wide default [`ComponentSize`] for all stock
     /// controls. Per-role overrides and per-element `.size(...)` still
     /// win.
+    ///
+    /// Any rung is accepted, [`ComponentSize::Xxs`] included, but that
+    /// one is a *chrome* rung — 22 px controls with 2 px gaps read as
+    /// instrumentation, and an app whose forms and dialogs are all
+    /// `Xxs` looks broken rather than dense. Set it per element
+    /// (`.size(ComponentSize::Xxs)`) or per role
+    /// ([`Self::with_button_size`]) on the bars that need it, and leave
+    /// the app default at [`ComponentSize::Xs`] or above.
     pub fn with_default_component_size(mut self, size: ComponentSize) -> Self {
         self.default_component_size = size;
         self
@@ -529,6 +596,10 @@ struct ControlMetrics {
 
 fn control_metrics(size: ComponentSize, kind: ControlKind) -> ControlMetrics {
     let (mut height, padding_x, radius, gap): (f32, f32, f32, f32) = match size {
+        // 22 px is the workbench bar height; the rest continue the
+        // `Sm` → `Xs` steps (−2 padding, −1 radius, −2 gap). See the
+        // `ComponentSize::Xxs` docs for the full derivation.
+        ComponentSize::Xxs => (22.0, 6.0, 4.0, 2.0),
         ComponentSize::Xs => (28.0, 8.0, 5.0, 4.0),
         ComponentSize::Sm => (32.0, 10.0, 6.0, 6.0),
         ComponentSize::Md => (36.0, 12.0, 7.0, 8.0),
@@ -585,6 +656,12 @@ struct BadgeMetrics {
 
 fn badge_metrics(size: ComponentSize) -> BadgeMetrics {
     match size {
+        // −2 on both axes from `Xs`, which lands the chrome rung on
+        // 16 px — the height dense-tool status chips measure at.
+        ComponentSize::Xxs => BadgeMetrics {
+            height: 16.0,
+            padding_x: 4.0,
+        },
         ComponentSize::Xs => BadgeMetrics {
             height: 18.0,
             padding_x: 6.0,
@@ -630,6 +707,11 @@ struct ChoiceControlMetrics {
 
 fn choice_control_metrics(size: ComponentSize) -> ChoiceControlMetrics {
     let edge = match size {
+        // −2 from `Xs`. At this rung the check glyph
+        // (`widgets::checkbox::CHECK_ICON_SIZE`, a rung-independent
+        // 12 px) fills the box edge to edge, which is the intended
+        // chrome look: a tick, not a tick inside a frame.
+        ComponentSize::Xxs => 12.0,
         ComponentSize::Xs => 14.0,
         ComponentSize::Sm => 16.0,
         ComponentSize::Md => 16.0,
@@ -661,6 +743,9 @@ fn apply_choice_control_size_to_children(el: &mut El, size: ComponentSize) {
 /// widget's unscaled [`crate::widgets::switch::TRACK_HEIGHT`].
 fn switch_metrics(size: ComponentSize) -> f32 {
     match size {
+        // −2 from `Xs`, which also preserves the +2 px a switch track
+        // runs above the choice box at that rung (16 vs 14 → 14 vs 12).
+        ComponentSize::Xxs => 14.0,
         ComponentSize::Xs => 16.0,
         ComponentSize::Sm => crate::widgets::switch::TRACK_HEIGHT,
         ComponentSize::Md => 22.0,
@@ -688,6 +773,8 @@ fn apply_switch(el: &mut El, track_height: f32) {
 
 fn slider_metrics(size: ComponentSize) -> f32 {
     match size {
+        // −2 from `Xs`, the ladder's own step.
+        ComponentSize::Xxs => 12.0,
         ComponentSize::Xs => 14.0,
         ComponentSize::Sm => 16.0,
         ComponentSize::Md => 18.0,
@@ -697,6 +784,9 @@ fn slider_metrics(size: ComponentSize) -> f32 {
 
 fn progress_metrics(size: ComponentSize) -> f32 {
     match size {
+        // −2 from `Xs` — the uniform step of this whole table — landing
+        // on the 2 px hairline bar dense tools run inside chrome.
+        ComponentSize::Xxs => 2.0,
         ComponentSize::Xs => 4.0,
         ComponentSize::Sm => 6.0,
         ComponentSize::Md => 8.0,
@@ -1470,5 +1560,179 @@ mod tests {
         let metrics = ThemeMetrics::default();
 
         assert_eq!(metrics.default_component_size(), ComponentSize::Sm);
+    }
+
+    // ===== The size ladder =====
+
+    /// Every rung, densest first. `Ord` is derived from this order, so
+    /// the declaration order and this list must agree.
+    const LADDER: [ComponentSize; 5] = [
+        ComponentSize::Xxs,
+        ComponentSize::Xs,
+        ComponentSize::Sm,
+        ComponentSize::Md,
+        ComponentSize::Lg,
+    ];
+
+    /// Every metric the ladder keys, as `(name, value)` pairs in a
+    /// stable order — one row of the ladder table.
+    fn rung_metrics(size: ComponentSize) -> Vec<(&'static str, f32)> {
+        let button = control_metrics(size, ControlKind::Button);
+        let icon = control_metrics(size, ControlKind::IconButton);
+        let input = control_metrics(size, ControlKind::Input);
+        let badge = badge_metrics(size);
+        vec![
+            ("button height", button.height),
+            ("button padding_x", button.padding_x),
+            ("button radius", button.radius),
+            ("button gap", button.gap),
+            ("icon button edge", icon.height),
+            ("input height", input.height),
+            ("input padding_x", input.padding_x),
+            ("badge height", badge.height),
+            ("badge padding_x", badge.padding_x),
+            ("choice edge", choice_control_metrics(size).edge),
+            ("switch track", switch_metrics(size)),
+            ("slider track", slider_metrics(size)),
+            ("progress height", progress_metrics(size)),
+        ]
+    }
+
+    #[test]
+    fn the_ladder_never_grows_as_the_rung_shrinks() {
+        // Monotonic, not strict: the ladder deliberately plateaus in
+        // places (Lg and Md share an 8 px gap; Md and Sm share a 16 px
+        // choice box and 8 px badge padding). What must never happen is
+        // a *smaller* rung with a *larger* value in any metric.
+        for pair in LADDER.windows(2) {
+            let (small, large) = (pair[0], pair[1]);
+            for ((name, s), (_, l)) in rung_metrics(small).into_iter().zip(rung_metrics(large)) {
+                assert!(
+                    s <= l,
+                    "{name}: {small:?} ({s}) must not exceed {large:?} ({l})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn xxs_is_strictly_denser_than_xs_on_every_metric() {
+        // The rung only earns its place if it is smaller in every
+        // dimension, not just in control height — a 22 px control with
+        // Xs padding and gaps would not fit its own contents.
+        // Exception: the Input horizontal-padding floor is a caret
+        // gutter, deliberately shared with Xs (see `ComponentSize::Xxs`).
+        for ((name, xxs), (_, xs)) in rung_metrics(ComponentSize::Xxs)
+            .into_iter()
+            .zip(rung_metrics(ComponentSize::Xs))
+        {
+            if name == "input padding_x" {
+                assert_eq!(xxs, xs, "the input padding floor is rung-independent");
+                continue;
+            }
+            assert!(
+                xxs < xs,
+                "{name}: Xxs ({xxs}) must be denser than Xs ({xs})"
+            );
+        }
+    }
+
+    #[test]
+    fn xxs_metrics_are_the_documented_chrome_values() {
+        let button = control_metrics(ComponentSize::Xxs, ControlKind::Button);
+        assert_eq!(button.height, 22.0, "the workbench bar height");
+        assert_eq!(button.padding_x, 6.0);
+        assert_eq!(button.radius, 4.0);
+        assert_eq!(button.gap, 2.0);
+
+        // Icon buttons stay square and lose their horizontal padding.
+        let icon = control_metrics(ComponentSize::Xxs, ControlKind::IconButton);
+        assert_eq!((icon.height, icon.padding_x), (22.0, 0.0));
+
+        // The input keeps the 10 px caret gutter (its floor bites here,
+        // as it already does at Xs) and is not given the Lg field bump.
+        let input = control_metrics(ComponentSize::Xxs, ControlKind::Input);
+        assert_eq!((input.height, input.padding_x), (22.0, 10.0));
+
+        let badge = badge_metrics(ComponentSize::Xxs);
+        assert_eq!((badge.height, badge.padding_x), (16.0, 4.0));
+
+        assert_eq!(choice_control_metrics(ComponentSize::Xxs).edge, 12.0);
+        assert_eq!(switch_metrics(ComponentSize::Xxs), 14.0);
+        assert_eq!(slider_metrics(ComponentSize::Xxs), 12.0);
+        assert_eq!(progress_metrics(ComponentSize::Xxs), 2.0);
+    }
+
+    #[test]
+    fn an_xxs_control_fits_a_thirty_pixel_title_strip() {
+        // The rung's whole reason to exist: a 30 px title bar has to
+        // hold the control *and* its focus ring, which paints
+        // RING_WIDTH outside the control bounds on every side.
+        let height = control_metrics(ComponentSize::Xxs, ControlKind::Button).height;
+        assert!(
+            height + 2.0 * tokens::RING_WIDTH <= 30.0,
+            "22 px control + 2 px ring per side must clear a 30 px strip, got {}",
+            height + 2.0 * tokens::RING_WIDTH
+        );
+        // And Xs, the rung that used to be the floor, does not — this
+        // is the measurement that motivated Xxs.
+        assert!(
+            control_metrics(ComponentSize::Xs, ControlKind::Button).height
+                + 2.0 * tokens::RING_WIDTH
+                > 30.0
+        );
+    }
+
+    #[test]
+    fn xxs_stamps_through_the_metrics_pass_onto_real_widgets() {
+        use crate::widgets::checkbox::checkbox;
+        use crate::widgets::progress::progress;
+        use crate::widgets::select::select_trigger;
+        use crate::widgets::slider::slider;
+        use crate::widgets::switch::switch;
+        use crate::{badge, row};
+
+        // End to end: the pass, not the table.
+        let mut chrome = row([
+            button("Run").size(ComponentSize::Xxs),
+            select_trigger("branch", "main").size(ComponentSize::Xxs),
+            badge("3").size(ComponentSize::Xxs),
+            checkbox("wrap", true).size(ComponentSize::Xxs),
+            switch("live", true).size(ComponentSize::Xxs),
+            slider("zoom", 0.5).size(ComponentSize::Xxs),
+            progress(0.4).size(ComponentSize::Xxs),
+        ]);
+        crate::Theme::default().apply_metrics(&mut chrome);
+
+        let kids = &chrome.children;
+        assert_eq!(kids[0].height, Size::Fixed(22.0), "button");
+        assert_eq!(kids[0].padding, Sides::xy(6.0, 0.0));
+        assert_eq!(kids[0].gap, 2.0);
+        assert_eq!(kids[1].height, Size::Fixed(22.0), "select trigger");
+        assert_eq!(
+            kids[1].padding,
+            Sides::xy(10.0, 0.0),
+            "the input caret gutter survives the rung"
+        );
+        assert_eq!(kids[2].height, Size::Fixed(16.0), "badge");
+        assert_eq!(kids[2].padding, Sides::xy(4.0, 0.0));
+        assert_eq!(kids[3].width, Size::Fixed(12.0), "checkbox box");
+        assert_eq!(kids[3].height, Size::Fixed(12.0));
+        assert_eq!(kids[4].height, Size::Fixed(14.0), "switch track");
+        assert_eq!(kids[5].height, Size::Fixed(12.0), "slider track");
+        assert_eq!(kids[6].height, Size::Fixed(2.0), "progress bar");
+    }
+
+    #[test]
+    fn xxs_is_the_ladders_floor_by_ord() {
+        // `Ord` is derived, so a future rung inserted in the wrong place
+        // would silently reorder comparisons.
+        assert!(LADDER.windows(2).all(|w| w[0] < w[1]));
+        assert_eq!(LADDER.iter().min(), Some(&ComponentSize::Xxs));
+        assert_eq!(
+            ComponentSize::default(),
+            ComponentSize::Md,
+            "still shadcn's"
+        );
     }
 }

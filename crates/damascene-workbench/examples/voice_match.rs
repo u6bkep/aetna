@@ -155,8 +155,9 @@ fn meter(total: usize, lit: usize, hot: usize, width: f32, height: f32) -> El {
 /// A 1px-outlined tag — `admin`, `you`.
 ///
 /// GAP (LIBRARY): `chrome::chip` is solid `badge.background`; stock
-/// `badge()` is 18px+ on a 6px radius with a tinted fill. The comp wants
-/// a 15px transparent outline, which is neither.
+/// `badge()` is 16px+ (the `Xxs` chrome rung) on a 6px radius with a
+/// tinted fill. The comp wants a 15px transparent outline, which is
+/// neither.
 fn tag(label: &str, c: Color) -> El {
     row([text(label).caption().font_size(10.0).color(c)])
         .stroke(c.with_alpha_u8(110))

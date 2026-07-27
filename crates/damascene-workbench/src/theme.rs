@@ -66,6 +66,7 @@ use crate::tokens as vs;
 ///
 /// | `ComponentSize` | stock control radius | × scale |
 /// |---|---|---|
+/// | `Xxs` | 4px | 1.14px |
 /// | `Xs` | 5px | 1.43px |
 /// | `Sm` | 6px | 1.71px |
 /// | `Md` | 7px | **2.00px** |

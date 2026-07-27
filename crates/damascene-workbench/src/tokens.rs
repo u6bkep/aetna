@@ -449,9 +449,11 @@ pub const PANE_HEADER_HEIGHT: f32 = 22.0;
 /// Title-strip height — **provisional** 30px.
 pub const TITLE_BAR_HEIGHT: f32 = 30.0;
 
-/// Chip height — **provisional** 16px. Denser than the stock badge
-/// ladder, whose smallest rung ([`damascene_core::metrics::ComponentSize::Xs`])
-/// is 18px.
+/// Chip height — **provisional** 16px. The same height the stock badge
+/// ladder's floor rung
+/// ([`damascene_core::metrics::ComponentSize::Xxs`], the chrome rung)
+/// now reaches; [`crate::chrome::chip`] still differs from a badge in
+/// fill and radius, not in density.
 pub const CHIP_HEIGHT: f32 = 16.0;
 
 /// The workbench corner radius — **provisional** 2px.
