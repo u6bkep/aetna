@@ -7,10 +7,12 @@
 //! **verbatim VS Code theme key** — `"sideBar.background"`,
 //! `"statusBar.background"`, `"focusBorder"`. That string is the part
 //! that matters: it is the most heavily corpus-represented dense-app
-//! token vocabulary in existence, and it is what
-//! [`crate::theme::palette`] registers through `Palette::with_token`,
-//! so these names resolve through the active palette like any stock
-//! shadcn name does.
+//! token vocabulary in existence, and it is what the active palette
+//! registers through `Palette::with_token`, so these names resolve
+//! through the palette like any stock shadcn name does. Paint
+//! [`SIDE_BAR_BG`] and you get whatever the live theme's
+//! `sideBar.background` is — the baked hex below is only the fallback
+//! for a palette that never registered the key.
 //!
 //! The Rust identifiers are flat `SCREAMING_SNAKE` (`SIDE_BAR_BG`,
 //! `STATUS_BAR_BG`) — matching the `damascene_core::tokens` house style,
@@ -25,9 +27,19 @@
 //! `Palette::lookup` matches its built-in arms first, so [`FOREGROUND`]
 //! resolves through `Palette::foreground` rather than through the extra
 //! map. That is correct — both names mean "default text color", and
-//! [`crate::theme::palette`] maps the palette slot to this same value.
+//! every theme in this crate points the two at one value.
 //!
-//! # Values
+//! # Values — Dark Modern's, which is now a *variant*
+//!
+//! The constants keep Dark Modern's calibrated values. Since the
+//! 2026-07-27 retarget (`docs/WORKBENCH_VISION.md`, §"Retarget
+//! ratified") those are what [`crate::theme::dark_modern`] paints;
+//! the crate default [`crate::theme::theme`] registers the same keys on
+//! the stock slate + blue palette's slots, so under it a `vs::` constant
+//! resolves to a slate value and the hex in its rustdoc is the
+//! calibration citation rather than a prediction of the pixel. Both
+//! remain available, and either can be rethemed key-by-key with
+//! `Palette::with_token`.
 //!
 //! Colors are **Dark Modern**, VS Code's out-of-the-box dark theme,
 //! resolved through its include chain
@@ -150,9 +162,12 @@ pub const ACTIVITY_BAR_BORDER: Color = Color::srgb_token("activityBar.border", 4
 
 /// `panel.background` — `#181818`.
 pub const PANEL_BG: Color = Color::srgb_token("panel.background", 24, 24, 24, 255);
-/// `panel.border` — `#2B2B2B`. The workbench's canonical hairline color;
-/// backs the `border` palette slot, so `damascene_core::tokens::BORDER`
-/// resolves here under [`crate::theme::theme`].
+/// `panel.border` — `#2B2B2B`. The workbench's canonical hairline color.
+/// It backs the `border` palette slot in [`crate::theme::palette`], so
+/// under [`crate::theme::dark_modern`] this and
+/// `damascene_core::tokens::BORDER` are one value; under
+/// [`crate::theme::theme`] the pointing reverses — this key is registered
+/// *onto* the palette's `border` slot — and they are still one value.
 pub const PANEL_BORDER: Color = Color::srgb_token("panel.border", 43, 43, 43, 255);
 /// `panelTitle.activeForeground` — `#CCCCCC`.
 pub const PANEL_TITLE_ACTIVE_FG: Color =

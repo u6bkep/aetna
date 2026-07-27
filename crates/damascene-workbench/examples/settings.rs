@@ -10,7 +10,7 @@
 //!
 //! What the theme is doing here, in one screen:
 //!
-//! - The rail sinks below the content (`sideBar.background` under
+//! - The rail steps above the content (`sideBar.background` over
 //!   `editor.background`) and the two meet on a 1px `sideBar.border` —
 //!   no gap, no card, no shadow.
 //! - Controls sit on the 28px `Xs` rung with ~2px corners, so a settings

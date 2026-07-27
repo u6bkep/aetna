@@ -7,14 +7,17 @@
 //!
 //! Stock damascene stays shadcn. Nothing here replaces or patches the
 //! default vocabulary — a `button()` still behaves exactly as it does
-//! anywhere else, it is simply 28px, 1.4px-cornered, and painted from
-//! Dark Modern values. Forms, dialogs, buttons and controls keep their
-//! shadcn anatomy; this crate resizes and squares them and adds the four
-//! chrome widgets core lacks.
+//! anywhere else, it is simply 28px, 1.4px-cornered, and painted from a
+//! layered workbench palette. Forms, dialogs, buttons and controls keep
+//! their shadcn anatomy; this crate resizes and squares them and adds the
+//! four chrome widgets core lacks.
 //!
 //! The ratified design record is `docs/WORKBENCH_VISION.md` — including
 //! the rejected alternatives (Carbon, Blender-as-skin, the
-//! Tailwind-zinc devtool genre) with their reasons.
+//! Tailwind-zinc devtool genre) with their reasons, and the 2026-07-27
+//! retarget that moved the *values* to the stock slate + blue palette
+//! while keeping VS Code's *keys* (§"Retarget ratified"; see
+//! [`theme::theme`] and [`theme::dark_modern`]).
 //!
 //! # Why this exists
 //!
@@ -36,19 +39,29 @@
 //! palette) — the crate contributes values and chrome recipes, no
 //! mechanisms.
 //!
-//! # Why VS Code specifically
+//! # Why VS Code specifically — the key vocabulary, not the colors
 //!
 //! Damascene's premise is vocabulary parity with the LLM training
 //! distribution. VS Code's theme keys are the most heavily
 //! corpus-represented dense-app token system in existence — hundreds of
 //! thousands of published theme files name `sideBar.background`,
-//! `statusBar.background`, `focusBorder` — and the product is the most
-//! used developer tool on earth. An agent told "make it look like VS
-//! Code" has deeper priors here than for any other tool aesthetic.
+//! `statusBar.background`, `focusBorder` — so they are the name source
+//! for chrome no other system supplies, and an agent told "put the
+//! status bar on `statusBar.background`" needs no glossary.
 //!
-//! Not binding: VS Code's DOM, its widget internals, or its widget
-//! shapes where shadcn already has an anatomy. A select is still a
-//! shadcn select, at workbench size and radius.
+//! That argument was ratified for the names and **rejected for the
+//! values** on 2026-07-27 (`docs/WORKBENCH_VISION.md`, §"Retarget
+//! ratified"): four independent agents given only "dense professional
+//! tool, VS Code workbench genre" all produced zinc-family neutrals with
+//! a sparse blue accent rather than Dark Modern's ramp, and value-level
+//! fidelity to VS Code was never load-bearing for the four inversions
+//! above. So [`theme::theme`] paints the stock
+//! `Palette::radix_slate_blue_dark` under the VS Code key names, and
+//! Dark Modern's calibrated values live on in [`theme::dark_modern`].
+//!
+//! Not binding: VS Code's colors (see above), its DOM, its widget
+//! internals, or its widget shapes where shadcn already has an anatomy.
+//! A select is still a shadcn select, at workbench size and radius.
 //!
 //! # Usage
 //!
@@ -80,7 +93,8 @@
 //!         .align(Align::Stretch)
 //!     }
 //!
-//!     // Without this, stock controls render in shadcn zinc at 36px.
+//!     // Without this, stock controls render at shadcn's 36px on a flat
+//!     // single-surface palette.
 //!     fn theme(&self) -> Theme {
 //!         theme::theme()
 //!     }
@@ -95,11 +109,14 @@
 //! **Color is calibrated; metrics are not.**
 //! `references/vscode-calibration/` vendors VS Code's own Dark Modern
 //! theme chain verbatim from a pinned upstream commit, and every color
-//! in [`tokens`] cites its key and value. The metric constants
-//! (bar heights, chip height, the 2px radius target) are the indicative
-//! figures from `docs/WORKBENCH_VISION.md` and remain hypotheses until
-//! the screenshot-measurement step of that document's calibration plan
-//! lands. They are marked individually in [`tokens`].
+//! in [`tokens`] cites its key and value. Since the 2026-07-27 retarget
+//! those constants are the *variant's* values: they are what
+//! [`theme::dark_modern`] paints, and what the default theme's keys are
+//! remapped away from onto the stock palette's slots. The metric
+//! constants (bar heights, chip height, the 2px radius target) are the
+//! indicative figures from `docs/WORKBENCH_VISION.md` and remain
+//! hypotheses until the screenshot-measurement step of that document's
+//! calibration plan lands. They are marked individually in [`tokens`].
 //!
 //! # Status
 //!
