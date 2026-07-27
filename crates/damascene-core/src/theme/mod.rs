@@ -281,20 +281,7 @@ impl Theme {
     }
 
     pub(crate) fn apply_metrics(&self, root: &mut crate::El) {
-        // One fused walk: the tree is large and cold (El is a wide
-        // struct), so traversal count dominates — the three passes
-        // (metrics recipes, proportional family, mono family) are all
-        // node-local and order-independent per node.
-        self.metrics.apply_node(root);
-        if !root.explicit_font_family {
-            root.font_family = self.font_family;
-        }
-        if !root.explicit_mono_font_family {
-            root.mono_font_family = self.mono_font_family;
-        }
-        for child in &mut root.children {
-            self.apply_metrics(child);
-        }
+        apply_metrics_tree(&self.metrics, self.font_family, self.mono_font_family, root);
     }
 
     /// Shorthand for `self.palette().resolve(c)`. Library code that
@@ -403,6 +390,49 @@ impl Default for Theme {
             font_family: FontFamily::default(),
             mono_font_family: FontFamily::JetBrainsMono,
         }
+    }
+}
+
+/// The metrics walk behind [`Theme::apply_metrics`]. One fused pass:
+/// the tree is large and cold (`El` is a wide struct), so traversal
+/// count dominates — the three per-node applications (metrics recipes,
+/// proportional family, mono family) are node-local and
+/// order-independent.
+///
+/// A virtual list realizes its rows *during the layout pass*, after
+/// this walk has already run over the tree — so on visiting a
+/// virtual-list node the walk re-wraps its `build_row`: every row it
+/// later realizes passes through this same function before sizing,
+/// exactly as its non-virtual siblings did. Without the wrap, realized
+/// rows silently keep stock metrics — invisible under a default theme,
+/// wrong under any theme that moves a scale (first seen as
+/// stock-shadcn 36px buttons inside a workbench-density history list).
+/// Nested virtual lists compose: wrapping a row wraps the lists inside
+/// it, one level per realization.
+fn apply_metrics_tree(
+    metrics: &crate::metrics::ThemeMetrics,
+    font_family: FontFamily,
+    mono_font_family: FontFamily,
+    el: &mut crate::El,
+) {
+    metrics.apply_node(el);
+    if !el.explicit_font_family {
+        el.font_family = font_family;
+    }
+    if !el.explicit_mono_font_family {
+        el.mono_font_family = mono_font_family;
+    }
+    if let Some(items) = el.virtual_items.as_deref_mut() {
+        let metrics = metrics.clone();
+        let inner = std::sync::Arc::clone(&items.build_row);
+        items.build_row = std::sync::Arc::new(move |i| {
+            let mut row = inner(i);
+            apply_metrics_tree(&metrics, font_family, mono_font_family, &mut row);
+            row
+        });
+    }
+    for child in &mut el.children {
+        apply_metrics_tree(metrics, font_family, mono_font_family, child);
     }
 }
 
@@ -556,6 +586,46 @@ mod tests {
     fn theme_can_route_icon_material() {
         let theme = Theme::default().with_icon_material(IconMaterial::Relief);
         assert_eq!(theme.icon_material(), IconMaterial::Relief);
+    }
+
+    /// Virtual-list rows are realized by the layout pass, after
+    /// `apply_metrics` has walked the tree — the walk must wrap
+    /// `build_row` so realized rows still take theme metrics. Regression:
+    /// under an `Xs`-sized theme, a button inside a realized row used to
+    /// keep the stock `Md` height (first seen as stock-shadcn 36px
+    /// buttons inside a workbench-density history list).
+    #[test]
+    fn virtual_list_rows_take_theme_metrics() {
+        use crate::metrics::ComponentSize;
+        use crate::widgets::button::button;
+
+        let theme = Theme::default().with_default_component_size(ComponentSize::Xs);
+        // A sibling button outside the list, for the expected geometry.
+        let mut reference = button("ref");
+        theme.apply_metrics(&mut reference);
+        let xs_height = reference.height;
+        assert_ne!(
+            xs_height,
+            button("raw").height,
+            "Xs must differ from stock for this test to bite"
+        );
+
+        let mut root = crate::tree::virtual_list(10, 50.0, |i| {
+            column([button(format!("row {i}")).key(format!("btn-{i}"))])
+        });
+        theme.apply_metrics(&mut root);
+        let mut state = crate::state::UiState::new();
+        crate::layout::assign_ids(&mut root);
+        crate::layout::layout(&mut root, &mut state, crate::Rect::new(0.0, 0.0, 300.0, 200.0));
+
+        assert!(!root.children.is_empty(), "rows should be realized");
+        for row in &root.children {
+            let btn = &row.children[0];
+            assert_eq!(
+                btn.height, xs_height,
+                "realized row button must carry the theme's control height"
+            );
+        }
     }
 
     #[test]
