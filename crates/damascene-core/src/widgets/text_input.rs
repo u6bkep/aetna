@@ -124,6 +124,28 @@ pub struct TextInputOpts<'a> {
     /// the glyphs. Numeric fields (e.g. `numeric_input`) default this
     /// on so digits don't shift as values change.
     pub tabular_numerals: bool,
+    /// Muted unit label pinned inside the field's own trough at its
+    /// trailing edge — `"mm"`, `"°C"`, `"%"`, `"px"`. The value's
+    /// scrolling viewport stops before it, so a long value clips at
+    /// the label instead of sliding underneath.
+    ///
+    /// The label is paint only: no key, no focus stop, no hit region
+    /// of its own. A click that lands on it hits the input (the label
+    /// sits inside the input's rect) and places the caret at the end
+    /// of the value, matching how browsers treat the padding band.
+    ///
+    /// This is the single-adornment shape. For a leading icon, a
+    /// trailing button, or several cells sharing one trough, compose
+    /// [`crate::widgets::input_group::input_group`] instead.
+    ///
+    /// Event-time note: the reserved band is a pure function of this
+    /// option ([`suffix_reserve`]), so [`apply_event_with`] must be
+    /// passed the *same* opts as the build call, or pointer→byte
+    /// mapping will disagree with what's on screen once the value is
+    /// long enough to scroll. That is the same joint-availability
+    /// contract [`TextInputOpts::mask`] and
+    /// [`TextInputOpts::max_length`] already carry.
+    pub suffix: Option<&'a str>,
 }
 
 impl<'a> TextInputOpts<'a> {
@@ -155,9 +177,63 @@ impl<'a> TextInputOpts<'a> {
         self
     }
 
+    /// Pin a muted unit label inside the trough's trailing edge (see
+    /// [`TextInputOpts::suffix`]).
+    pub fn suffix(mut self, s: &'a str) -> Self {
+        self.suffix = Some(s);
+        self
+    }
+
     fn is_masked(&self) -> bool {
         !matches!(self.mask, MaskMode::None)
     }
+}
+
+/// Horizontal band the trailing [`TextInputOpts::suffix`] label
+/// reserves inside the field's content box, in logical pixels — the
+/// measured label width plus one [`tokens::SPACE_2`] of breathing room
+/// between it and the value. `0.0` when no suffix is set.
+///
+/// Deliberately a pure function of the opts (not of the laid-out tree):
+/// the build path sizes the suffix cell with it and the event path
+/// subtracts it from the text viewport, and those two must agree
+/// exactly or the caret-into-view scroll offset diverges between the
+/// frame the user sees and the frame `apply_event` reasons about.
+///
+/// Measured at [`tokens::TEXT_SM`], the size the muted label renders
+/// at under the stock type scale. A theme with a non-unit
+/// `with_type_scale` shifts the rendered label by the scale factor;
+/// the band stays put, so the label sits a hair off its nominal inset
+/// rather than the viewport being mis-measured.
+pub fn suffix_reserve(opts: &TextInputOpts<'_>) -> f32 {
+    match opts.suffix {
+        Some(s) if !s.is_empty() => {
+            tokens::SPACE_2
+                + crate::text::metrics::line_width(
+                    s,
+                    tokens::TEXT_SM.size,
+                    FontWeight::Regular,
+                    false,
+                )
+        }
+        _ => 0.0,
+    }
+}
+
+/// The muted trailing unit cell. A plain group + text leaf: unkeyed,
+/// unfocusable, no cursor of its own, so it never becomes a hit-test
+/// target and clicks fall through to the input that contains it.
+fn suffix_cell(s: &str, reserve: f32) -> El {
+    El::new(Kind::Group)
+        .axis(Axis::Row)
+        // Center vertically against the control rung; End so the label
+        // hugs the content box's right edge and the reserve's slack
+        // lands between the value and the label.
+        .align(Align::Center)
+        .justify(Justify::End)
+        .width(Size::Fixed(reserve))
+        .height(Size::Fill(1.0))
+        .child(text(s).muted())
 }
 
 impl TextSelection {
@@ -385,7 +461,7 @@ fn build_text_input(value: &str, view: Option<TextSelection>, opts: TextInputOpt
         })
         .children(children);
 
-    El::new(Kind::Custom("text_input"))
+    let outer = El::new(Kind::Custom("text_input"))
         .at_loc(Location::caller())
         .style_profile(StyleProfile::Surface)
         .metrics_role(MetricsRole::Input)
@@ -408,7 +484,35 @@ fn build_text_input(value: &str, view: Option<TextSelection>, opts: TextInputOpt
         .default_width(Size::Fill(1.0))
         .default_height(Size::Fixed(tokens::CONTROL_HEIGHT))
         .default_padding(Sides::xy(tokens::SPACE_3, 0.0))
-        .child(inner)
+        .child(inner);
+
+    // No suffix: the overlay stays a single-child stack, exactly as
+    // before this option existed.
+    let reserve = suffix_reserve(&opts);
+    let (Some(suffix), true) = (opts.suffix, reserve > 0.0) else {
+        return outer;
+    };
+
+    // With a suffix the outer becomes the row `[viewport | unit]`.
+    // Three things make this safe for the caret math:
+    //
+    // - The horizontal *padding* is untouched, so `caret_byte_at`'s
+    //   `rect.x + SPACE_3` content-box origin still holds, and the
+    //   metrics pass may keep restamping the Input rung's `padding_x`
+    //   (it overwrites the whole `Sides` — an asymmetric reserve baked
+    //   into the padding would not survive it).
+    // - `Align::Stretch` keeps the viewport child at the full control
+    //   height, the way `Axis::Overlay` did; `Start`/`Center` would
+    //   collapse a cross-axis `Fill` to its intrinsic.
+    // - The gap is set *explicitly* to zero so the metrics pass can't
+    //   stamp the Input rung's gap between the two cells; the reserve
+    //   is then the whole difference between the content box and the
+    //   text viewport, which is what `apply_event_with` subtracts.
+    outer
+        .axis(Axis::Row)
+        .align(Align::Stretch)
+        .gap(0.0)
+        .child(suffix_cell(suffix, reserve))
 }
 
 fn caret_bar() -> El {
@@ -731,7 +835,7 @@ fn fold_event_local(
             // past the right edge, the content the user clicks
             // lives at `local_x + x_offset` in content space, not
             // at raw `local_x`.
-            let viewport_w = (target.rect.w - 2.0 * tokens::SPACE_3).max(0.0);
+            let viewport_w = text_viewport_width(target.rect.w, opts);
             let x_offset = current_x_offset(value, selection.head, viewport_w, opts);
             let local_x = px - target.rect.x - tokens::SPACE_3 + x_offset;
             let pos = caret_from_x(value, local_x, opts);
@@ -767,7 +871,7 @@ fn fold_event_local(
             let (Some((px, _py)), Some(target)) = (event.pointer, event.target.as_ref()) else {
                 return false;
             };
-            let viewport_w = (target.rect.w - 2.0 * tokens::SPACE_3).max(0.0);
+            let viewport_w = text_viewport_width(target.rect.w, opts);
             let x_offset = current_x_offset(value, selection.head, viewport_w, opts);
             let local_x = px - target.rect.x - tokens::SPACE_3 + x_offset;
             let pos = caret_from_x(value, local_x, opts);
@@ -784,7 +888,7 @@ fn fold_event_local(
             // path above. The current `selection.head` reflects
             // pre-event state — that's the head the rendered
             // frame used to compute its `x_offset`.
-            let viewport_w = (target.rect.w - 2.0 * tokens::SPACE_3).max(0.0);
+            let viewport_w = text_viewport_width(target.rect.w, opts);
             let x_offset = current_x_offset(value, selection.head, viewport_w, opts);
             let local_x = px - target.rect.x - tokens::SPACE_3 + x_offset;
             let pos = caret_from_x(value, local_x, opts);
@@ -1034,6 +1138,19 @@ pub fn caret_byte_at(value: &str, event: &UiEvent, opts: &TextInputOpts<'_>) -> 
     let target = event.target.as_ref()?;
     let local_x = px - target.rect.x - tokens::SPACE_3;
     Some(caret_from_x(value, local_x, opts))
+}
+
+/// Width of the scrolling text viewport inside a laid-out input of
+/// width `rect_w` — the content box minus whatever a trailing
+/// [`TextInputOpts::suffix`] reserves.
+///
+/// The build path gets this width for free (the viewport child is the
+/// `Fill` cell of the outer row, so layout hands it exactly this
+/// extent); the event path has only `target.rect`, so it recomputes
+/// the same number here. Both feed [`current_x_offset`], and they must
+/// agree or clicks land on the wrong byte in a scrolled field.
+fn text_viewport_width(rect_w: f32, opts: &TextInputOpts<'_>) -> f32 {
+    (rect_w - 2.0 * tokens::SPACE_3 - suffix_reserve(opts)).max(0.0)
 }
 
 /// Horizontal scroll offset applied to text_input's content for
@@ -2588,6 +2705,172 @@ mod tests {
             leaf_rect.x,
             inner_rect.x
         );
+    }
+
+    #[test]
+    fn suffix_renders_a_muted_leaf_inside_the_trough() {
+        let el = super::text_input_with(
+            "ti",
+            "42",
+            &Selection::default(),
+            TextInputOpts::default().suffix("mm"),
+        );
+        // The trough is still the input itself — the suffix rides
+        // inside its rect, so the focus ring wraps both.
+        assert_eq!(el.surface_role, SurfaceRole::Input);
+        assert!(el.focusable);
+        assert_eq!(el.axis, Axis::Row, "outer becomes [viewport | unit]");
+        assert_eq!(el.children.len(), 2);
+        assert!(el.explicit_gap, "gap pinned to 0 so metrics can't stamp it");
+        assert_eq!(el.gap, 0.0);
+
+        let cell = &el.children[1];
+        assert_eq!(cell.width, Size::Fixed(suffix_reserve(&opts_with_suffix())));
+        assert!(
+            cell.key.is_none() && !cell.focusable && cell.cursor.is_none(),
+            "the unit label must never become a hit-test or focus target"
+        );
+        let label = &cell.children[0];
+        assert_eq!(label.text.as_deref(), Some("mm"));
+        assert_eq!(label.text_color, Some(tokens::MUTED_FOREGROUND));
+    }
+
+    fn opts_with_suffix() -> TextInputOpts<'static> {
+        TextInputOpts::default().suffix("mm")
+    }
+
+    #[test]
+    fn no_suffix_leaves_the_overlay_shape_untouched() {
+        let el = super::text_input("ti", "42", &Selection::default());
+        assert_eq!(el.axis, Axis::Overlay);
+        assert_eq!(el.children.len(), 1);
+        assert_eq!(suffix_reserve(&TextInputOpts::default()), 0.0);
+        // An empty suffix is the same as none — no dead band, no cell.
+        let empty = super::text_input_with(
+            "ti",
+            "42",
+            &Selection::default(),
+            TextInputOpts::default().suffix(""),
+        );
+        assert_eq!(empty.axis, Axis::Overlay);
+        assert_eq!(empty.children.len(), 1);
+    }
+
+    #[test]
+    fn suffix_narrows_the_text_viewport_by_exactly_the_reserve() {
+        use crate::tree::Size;
+        let opts = TextInputOpts::default().suffix("mm");
+        let reserve = suffix_reserve(&opts);
+        assert!(reserve > tokens::SPACE_2, "measured label plus a gap");
+
+        let mut plain = super::text_input("ti", "42", &Selection::default())
+            .width(Size::Fixed(200.0))
+            .height(Size::Fixed(32.0));
+        let mut suffixed = super::text_input_with("ti", "42", &Selection::default(), opts)
+            .width(Size::Fixed(200.0))
+            .height(Size::Fixed(32.0));
+        let mut state = crate::state::UiState::new();
+        crate::layout::layout(&mut plain, &mut state, Rect::new(0.0, 0.0, 200.0, 32.0));
+        crate::layout::layout(&mut suffixed, &mut state, Rect::new(0.0, 0.0, 200.0, 32.0));
+
+        let plain_viewport = plain.children[0].computed_rect;
+        let suffixed_viewport = suffixed.children[0].computed_rect;
+        assert!(
+            (plain_viewport.x - suffixed_viewport.x).abs() < 0.01,
+            "the viewport's left edge — what pointer→byte math anchors on — must not move"
+        );
+        assert!(
+            (plain_viewport.w - suffixed_viewport.w - reserve).abs() < 0.01,
+            "viewport should lose exactly the reserve: {} vs {} (reserve {})",
+            plain_viewport.w,
+            suffixed_viewport.w,
+            reserve
+        );
+        // And the number the event path computes matches the laid-out one.
+        assert!(
+            (text_viewport_width(200.0, &opts) - suffixed_viewport.w).abs() < 0.01,
+            "event-time viewport width must equal the laid-out viewport"
+        );
+    }
+
+    #[test]
+    fn suffix_does_not_move_the_pointer_to_byte_mapping() {
+        // The caret math anchors on `rect.x + SPACE_3`, which the
+        // suffix leaves alone: the same click lands on the same byte
+        // with and without a unit label.
+        let value = String::from("hello");
+        let target = ti_target();
+        let click_x = target.rect.x + tokens::SPACE_3 + 12.0;
+        let click = || {
+            ev_pointer_down(
+                ti_target(),
+                (click_x, target.rect.y + 18.0),
+                KeyModifiers::default(),
+            )
+        };
+
+        let mut plain_value = value.clone();
+        let mut plain_sel = TextSelection::caret(0);
+        assert!(apply_event_with(
+            &mut plain_value,
+            &mut plain_sel,
+            &click(),
+            &TextInputOpts::default(),
+        ));
+
+        let mut suffixed_value = value.clone();
+        let mut suffixed_sel = TextSelection::caret(0);
+        assert!(apply_event_with(
+            &mut suffixed_value,
+            &mut suffixed_sel,
+            &click(),
+            &TextInputOpts::default().suffix("mm"),
+        ));
+
+        assert_eq!(
+            plain_sel, suffixed_sel,
+            "a click in the value area must map to the same byte either way"
+        );
+    }
+
+    #[test]
+    fn suffix_keeps_scrolled_click_mapping_consistent_with_the_render() {
+        // The one place the reserve *must* be threaded: once the value
+        // overflows, build and event time both derive the x_offset
+        // from the viewport width. If `apply_event` used the full
+        // content box, a click in a scrolled field would land
+        // `reserve` px off.
+        use crate::tree::Size;
+        let opts = TextInputOpts::default().suffix("mm");
+        let value = "0123456789".repeat(4);
+        let head = value.len();
+
+        let mut root = super::text_input_with(
+            "ti",
+            &value,
+            &as_selection_in("ti", TextSelection::caret(head)),
+            opts,
+        )
+        .width(Size::Fixed(160.0))
+        .height(Size::Fixed(32.0));
+        let mut state = crate::state::UiState::new();
+        crate::layout::layout(&mut root, &mut state, Rect::new(0.0, 0.0, 160.0, 32.0));
+
+        let viewport = root.children[0].computed_rect;
+        let leaf = root.children[0]
+            .children
+            .iter()
+            .find(|c| matches!(c.kind, Kind::Text))
+            .expect("value leaf");
+        // What the frame actually painted: how far left the content sits.
+        let painted_offset = viewport.x - leaf.computed_rect.x;
+        // What the event path will assume.
+        let event_offset = current_x_offset(&value, head, text_viewport_width(160.0, &opts), &opts);
+        assert!(
+            (painted_offset - event_offset).abs() < 0.01,
+            "painted scroll {painted_offset} vs event-time scroll {event_offset}"
+        );
+        assert!(painted_offset > 0.0, "the fixture must actually scroll");
     }
 
     /// Test helper: build a `Selection` with `(anchor, head)` under
