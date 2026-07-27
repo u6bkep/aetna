@@ -10,17 +10,40 @@
 //!   `editor_tabs`.
 //!
 //! Unlike the retired Carbon experiment, both sets resolve through the
-//! *same* [`Palette`]: [`palette`] maps VS Code values onto the shadcn
-//! slots **and** registers the workbench keys through
-//! `Palette::with_token`, so a palette swap moves both. That is what the
-//! open token namespace bought (see `docs/VOCABULARY_PARITY.md` §2).
+//! *same* [`Palette`], which also carries the workbench keys as extra
+//! tokens (`Palette::with_token`), so a palette swap moves both. That is
+//! what the open token namespace bought (see
+//! `docs/VOCABULARY_PARITY.md` §2).
+//!
+//! # Which values — the keys are the naming layer, not the colors
+//!
+//! [`theme`], the default, paints from the stock
+//! `Palette::radix_slate_blue_dark` (background `#111113`, card
+//! `#18191B`, primary `#0090FF`), and
+//! [`register_workbench_tokens_from_palette`] remaps every VS Code key
+//! onto the slot that owns its semantic — `sideBar.background` → `card`,
+//! `button.background` → `primary`, `focusBorder` → `ring`. The
+//! vocabulary is VS Code's; the values are the palette's, so swapping
+//! the palette moves the whole key set at once.
+//!
+//! Dark Modern's values survive verbatim as [`dark_modern`], built from
+//! [`palette`] + [`register_workbench_tokens`]. It is the calibrated
+//! reference (`references/vscode-calibration/`) and the demonstration
+//! that the vocabulary rethemes — `examples/slicer_match.rs` reskins the
+//! whole crate in ~30 `with_token` lines.
+//!
+//! Ratified 2026-07-27; the evidence and the rejected
+//! Dark-Modern-as-default position are in `docs/WORKBENCH_VISION.md`,
+//! §"Retarget ratified".
 //!
 //! # Dark only
 //!
 //! `docs/WORKBENCH_VISION.md` left "whether the crate ships light themes
-//! at all" open. It does not, yet: Dark Modern is the calibrated
-//! reference and there is no consumer asking for light. When one does,
-//! the shape is a second `palette_light()` over VS Code's Light Modern.
+//! at all" open. It does not, yet: there is no consumer asking for
+//! light. When one does, the shape is
+//! [`register_workbench_tokens_from_palette`] over
+//! `Palette::radix_slate_blue_light` — the remap is slot-derived, so it
+//! carries to a light palette unchanged.
 
 #![warn(missing_docs)]
 
@@ -87,6 +110,12 @@ pub const TYPE_SCALE: f32 = 13.0 / 14.0;
 
 /// Dark Modern mapped onto the shadcn palette slots, plus every
 /// workbench key registered as an extra token.
+///
+/// This is [`dark_modern`]'s palette — the *variant*, not the crate
+/// default. [`theme`] paints from [`slate_palette`] (ratified
+/// 2026-07-27; see the module docs). It keeps its original name because
+/// downstream rethemes spread it (`..theme::palette()`), and because
+/// everything below it is still true of Dark Modern.
 ///
 /// # The slot mapping
 ///
@@ -380,40 +409,257 @@ pub fn register_workbench_tokens(p: Palette) -> Palette {
         )
 }
 
-/// The VS Code workbench theme: [`palette`], `Xs` controls,
-/// [`RADIUS_SCALE`], flat chrome with shadowed overlays, Inter +
-/// JetBrains Mono.
+/// The palette [`theme`] paints from: the stock
+/// `Palette::radix_slate_blue_dark`, with the workbench key vocabulary
+/// remapped onto its slots by
+/// [`register_workbench_tokens_from_palette`].
 ///
-/// The four structural inversions from `docs/WORKBENCH_VISION.md`,
-/// and where each one lives:
+/// No slot is overridden. The whole point of the 2026-07-27 retarget is
+/// that the values are the stock palette's — background `#111113`, card
+/// `#18191B`, primary `#0090FF` — and the VS Code keys name them rather
+/// than supply them.
+pub fn slate_palette() -> Palette {
+    register_workbench_tokens_from_palette(Palette::radix_slate_blue_dark())
+}
+
+/// Register the workbench key vocabulary on `p`, deriving every value
+/// from `p`'s **own shadcn slots**.
 ///
-/// 1. **Control scale** — `with_default_component_size(Xs)` puts stock
-///    buttons and inputs on the 28px rung instead of shadcn's 36px `Md`,
-///    and [`TYPE_SCALE`] takes the whole type ladder to VS Code's 13px
-///    baseline (body/label 13px, captions ~11px).
-/// 2. **Radius + shadow** — [`RADIUS_SCALE`] takes every theme-default
-///    corner, controls included, down to the 1–3.5px band, and
-///    `with_shadow_scale(0.0)` flattens every recipe shadow: cards and
-///    buttons stop floating. Overlays are re-elevated selectively — a
-///    `Popover`-role uniform restores `SHADOW_MD` on menus, tooltips,
-///    dialogs, and palettes, matching VS Code's shadowed
-///    `widget.shadow` on its otherwise flat chrome.
-/// 3. **Layered surfaces** — the `card = sideBar.background` row of
-///    [`palette`], plus [`crate::chrome`]'s hairline separators.
-/// 4. **Whitespace** — the crate's chrome recipes; the stock container
-///    paddings are unchanged, because damascene deliberately has no
-///    density knob (`docs/VOCABULARY_PARITY.md`, "Rejected").
+/// This is the retarget's mechanism ([`slate_palette`] is one call to
+/// it): each VS Code key gets the slot that owns its semantic, so a
+/// palette swap moves the entire key set at once — including to a light
+/// palette. Contrast [`register_workbench_tokens`], which registers Dark
+/// Modern's literal values.
 ///
-/// Fonts follow the stock configuration — Inter for UI, JetBrains Mono
-/// for code — which is also what a default `Theme` already carries. Both
-/// are set explicitly so the theme states its whole intent in one place
-/// rather than inheriting half of it.
-pub fn theme() -> Theme {
+/// # The remap
+///
+/// | VS Code keys | slot |
+/// |---|---|
+/// | `editor.background`, `tab.activeBackground` | `background` |
+/// | `sideBar.background`, `sideBarSectionHeader.background`, `statusBar.background`, `titleBar.activeBackground`, `activityBar.background`, `panel.background`, `editorGroupHeader.tabsBackground`, `tab.inactiveBackground` | `card` |
+/// | `sideBar.foreground` | `card-foreground` |
+/// | `quickInput.background`, `editorWidget.background`, `menu.background`, `dropdown.listBackground` | `popover` |
+/// | `quickInput.foreground` | `popover-foreground` |
+/// | `editor.foreground`, `input.foreground`, `tab.activeForeground`, `titleBar.activeForeground`, `activityBar.foreground`, `panelTitle.activeForeground`, `statusBarItem.hoverBackground` (a wash — see below) | `foreground` |
+/// | `descriptionForeground`, `input.placeholderForeground`, `statusBarItem.prominentBackground` (a wash), and every dimmed label (`sideBarTitle`, `sideBarSectionHeader`, `statusBar`, `tab.inactive*`, `activityBar.inactive*`, `panelTitle.inactive*`) | `muted-foreground` |
+/// | `button.background`, `progressBar.background`, `tab.activeBorderTop`, `statusBarItem.remoteBackground`, `menu.selectionBackground` | `primary` |
+/// | `button.foreground`, `statusBarItem.remoteForeground` | `primary-foreground` |
+/// | `button.secondaryBackground`, `button.secondaryHoverBackground`, `badge.background` | `secondary` |
+/// | `button.secondaryForeground`, `badge.foreground` | `secondary-foreground` |
+/// | `list.hoverBackground`, `editor.inactiveSelectionBackground`, `list.inactiveSelectionBackground` | `muted` |
+/// | `list.activeSelectionBackground` | `accent` |
+/// | `list.activeSelectionForeground` | `accent-foreground` |
+/// | `button.hoverBackground` | `primary` darkened 0.12 |
+/// | every chrome `*.border` | `border` |
+/// | `input.border`, `dropdown.border`, `checkbox.border`, `widget.border` | `input` |
+/// | `input.background`, `dropdown.background`, `checkbox.background` | `muted` darkened 0.08 |
+/// | `focusBorder` | `ring` |
+/// | `errorForeground` | `destructive` |
+/// | `editorGutter.addedBackground` | `success` |
+/// | `editorGutter.deletedBackground` | `destructive` |
+/// | `editorGutter.modifiedBackground` | `info` |
+/// | `chat.editedFileForeground` | `warning` |
+/// | `textLink.foreground` | `link-foreground` |
+///
+/// # The rows that are decisions rather than table lookups
+///
+/// - **The surface model inverts.** VS Code sinks chrome *below* the
+///   editor (`#181818` under `#1F1F1F`); the shadcn genre raises chrome
+///   *above* content (`card` over `background`). So every chrome ground
+///   — side bar, status bar, title bar, activity bar, panel, tab strip —
+///   takes `card`, and `editor.background` takes `background`.
+///   `tab.activeBackground` follows the *content*, not the strip: it is
+///   `background`, keeping the active tab continuous with the well below
+///   it exactly as Dark Modern's `tab.activeBackground == editor.background`
+///   does. `docs/WORKBENCH_VISION.md`, §"Retarget ratified".
+/// - **`input.background` is `muted` darkened 0.08, not a slot.** That
+///   is `SurfaceRole::Input`'s own trough derivation
+///   (`damascene-core/src/theme/mod.rs`), so the key names what a stock
+///   `text_input`, `select` or `text_area` actually renders instead of
+///   sitting one step off it. `dropdown`/`checkbox` share the trough
+///   because they are the same role.
+/// - **Control borders take `input`, chrome borders take `border`.** The
+///   split is semantic and currently invisible — the slate palette gives
+///   both slots `#363A3F` — but it survives a palette that separates
+///   them, which is what VS Code's `input.border` ≠ `panel.border` meant.
+///   `widget.border` joins the control group because
+///   `SurfaceRole::Popover` strokes with `tokens::INPUT`.
+/// - **`list.activeSelectionBackground` is `accent`, not
+///   `selection-bg`.** `selection-bg` is the slot that *owns* the
+///   semantic, and it was the ratified assignment — but it is designed
+///   **translucent** (`#0090FF` at 38%), and `Palette::resolve` takes
+///   alpha from the requesting color rather than from the palette entry.
+///   An opaque key pointed at it therefore paints full-strength
+///   `#0090FF`: measured by rendering it, the selected row in
+///   `examples/parts.rs` comes out a saturated blue band (probed
+///   `#0090FF`) carrying `foreground` text at 2.8:1 — under AA — and
+///   rows that keep their own muted paint under the band, like
+///   `examples/voice.rs`'s chevron and count chip, land near 1.6:1. It
+///   also spends the sparse accent the genre finding is about on every
+///   selected row. `accent` + `accent-foreground` (`#0D2847` /
+///   `#70B8FF`, 7.1:1) is shadcn's own selected-row pair and is what
+///   `SurfaceRole::Current` paints, so a stock "current item" and a
+///   hand-painted selected row agree.
+///   `list.inactiveSelectionBackground` and
+///   `editor.inactiveSelectionBackground` take `muted` for the same
+///   reason — `selection-bg-unfocused` is a translucent grey whose
+///   opaque form (`#696E77`) would read as a light band over the whole
+///   row. Both translucent slots stay reachable under their stock names
+///   for the widgets that respect their alpha (`text_input`'s selection).
+/// - **The four alpha-bearing keys are washes, so their slot must be
+///   *light*.** `statusBarItem.hoverBackground` (`#F1F1F133`) and
+///   `statusBarItem.prominentBackground` (`#6E768166`) keep their baked
+///   alpha through `resolve`, so pointing them at a near-background slot
+///   would erase them; they take `foreground` and `muted-foreground`,
+///   the light values whose 20%/40% wash over `card` reproduces what VS
+///   Code's greys do over `#181818`. `editorGroup.border`
+///   (`#FFFFFF17`) stays on `border` — it is a border key and VS Code's
+///   own value is a whisper — and `button.secondaryBackground`
+///   (`#00000000`) stays invisible on `secondary`, both as documented in
+///   [`crate::tokens`].
+/// - **Dimmed labels are a judgment call per key.** Dark Modern paints
+///   `sideBarTitle.foreground`, `sideBarSectionHeader.foreground` and
+///   `statusBar.foreground` at full `#CCCCCC`; here they take
+///   `muted-foreground`. All three render as small uppercase
+///   instrumentation in [`crate::chrome`], the genre dims them, and
+///   `muted-foreground` (`#B0B4BA`) is still ~8:1 on `card`. The
+///   keys VS Code itself dims (`tab.inactiveForeground`,
+///   `activityBar.inactiveForeground`, `panelTitle.inactiveForeground`)
+///   take the same slot, so the two groups do not collapse into
+///   different values for the same visual weight.
+pub fn register_workbench_tokens_from_palette(p: Palette) -> Palette {
+    // Snapshot the slots: `with_token` consumes the palette.
+    let background = p.background;
+    let foreground = p.foreground;
+    let card = p.card;
+    let card_foreground = p.card_foreground;
+    let popover = p.popover;
+    let popover_foreground = p.popover_foreground;
+    let primary = p.primary;
+    let primary_foreground = p.primary_foreground;
+    let secondary = p.secondary;
+    let secondary_foreground = p.secondary_foreground;
+    let muted = p.muted;
+    let muted_foreground = p.muted_foreground;
+    let accent = p.accent;
+    let accent_foreground = p.accent_foreground;
+    let destructive = p.destructive;
+    let border = p.border;
+    let input = p.input;
+    let ring = p.ring;
+    let success = p.success;
+    let warning = p.warning;
+    let info = p.info;
+    let link_foreground = p.link_foreground;
+    // The input trough, mirroring `SurfaceRole::Input` verbatim —
+    // `palette.resolve(tokens::MUTED).darken(0.08)` — so the key and the
+    // rendered control cannot drift.
+    let trough = p.resolve(damascene_core::tokens::MUTED).darken(0.08);
+
+    p
+        // Editor / text
+        .with_token("editor.background", background)
+        .with_token("editor.foreground", foreground)
+        .with_token("descriptionForeground", muted_foreground)
+        .with_token("errorForeground", destructive)
+        .with_token("textLink.foreground", link_foreground)
+        // Side bar — chrome, so `card`
+        .with_token("sideBar.background", card)
+        .with_token("sideBar.foreground", card_foreground)
+        .with_token("sideBar.border", border)
+        .with_token("sideBarTitle.foreground", muted_foreground)
+        .with_token("sideBarSectionHeader.background", card)
+        .with_token("sideBarSectionHeader.foreground", muted_foreground)
+        .with_token("sideBarSectionHeader.border", border)
+        // Bars
+        .with_token("statusBar.background", card)
+        .with_token("statusBar.foreground", muted_foreground)
+        .with_token("statusBar.border", border)
+        // A 20% wash: needs a light rgb to lighten the bar (see docs).
+        .with_token("statusBarItem.hoverBackground", foreground)
+        .with_token("statusBarItem.remoteBackground", primary)
+        .with_token("statusBarItem.remoteForeground", primary_foreground)
+        // A 40% wash, same reasoning one step dimmer.
+        .with_token("statusBarItem.prominentBackground", muted_foreground)
+        .with_token("titleBar.activeBackground", card)
+        .with_token("titleBar.activeForeground", foreground)
+        .with_token("titleBar.border", border)
+        .with_token("activityBar.background", card)
+        .with_token("activityBar.foreground", foreground)
+        .with_token("activityBar.inactiveForeground", muted_foreground)
+        .with_token("activityBar.border", border)
+        .with_token("panel.background", card)
+        .with_token("panel.border", border)
+        .with_token("panelTitle.activeForeground", foreground)
+        .with_token("panelTitle.inactiveForeground", muted_foreground)
+        // Editor group header and tabs
+        .with_token("editorGroupHeader.tabsBackground", card)
+        .with_token("editorGroupHeader.tabsBorder", border)
+        .with_token("editorGroup.border", border)
+        // The active tab is continuous with the content well, not with
+        // the strip — the one place the inverted model still points a
+        // chrome key at `background`.
+        .with_token("tab.activeBackground", background)
+        .with_token("tab.activeForeground", foreground)
+        .with_token("tab.inactiveBackground", card)
+        .with_token("tab.inactiveForeground", muted_foreground)
+        .with_token("tab.border", border)
+        .with_token("tab.activeBorderTop", primary)
+        // Controls
+        .with_token("focusBorder", ring)
+        .with_token("button.background", primary)
+        .with_token("button.foreground", primary_foreground)
+        // No hover slot exists in the shadcn vocabulary; the darken
+        // matches the direction of Dark Modern's `#026EC1` under
+        // `#0078D4`.
+        .with_token("button.hoverBackground", primary.darken(0.12))
+        .with_token("button.secondaryBackground", secondary)
+        .with_token("button.secondaryForeground", secondary_foreground)
+        .with_token("button.secondaryHoverBackground", secondary)
+        .with_token("input.background", trough)
+        .with_token("input.border", input)
+        .with_token("input.foreground", foreground)
+        .with_token("input.placeholderForeground", muted_foreground)
+        .with_token("dropdown.background", trough)
+        .with_token("dropdown.border", input)
+        .with_token("dropdown.listBackground", popover)
+        .with_token("checkbox.background", trough)
+        .with_token("checkbox.border", input)
+        .with_token("progressBar.background", primary)
+        // Floating surfaces
+        .with_token("quickInput.background", popover)
+        .with_token("quickInput.foreground", popover_foreground)
+        .with_token("editorWidget.background", popover)
+        .with_token("widget.border", input)
+        .with_token("menu.background", popover)
+        .with_token("menu.selectionBackground", primary)
+        .with_token("pickerGroup.border", border)
+        // Badge and list
+        .with_token("badge.background", secondary)
+        .with_token("badge.foreground", secondary_foreground)
+        .with_token("list.activeSelectionBackground", accent)
+        .with_token("list.activeSelectionForeground", accent_foreground)
+        .with_token("list.inactiveSelectionBackground", muted)
+        .with_token("list.hoverBackground", muted)
+        // Status colors and selection
+        .with_token("editorGutter.addedBackground", success)
+        .with_token("editorGutter.deletedBackground", destructive)
+        .with_token("editorGutter.modifiedBackground", info)
+        .with_token("chat.editedFileForeground", warning)
+        .with_token("editor.inactiveSelectionBackground", muted)
+}
+
+/// The workbench density profile over `palette` — the half of the theme
+/// that is *not* color.
+///
+/// Shared by [`theme`] and [`dark_modern`] so the two differ in exactly
+/// one thing: their palette.
+fn profile(palette: Palette) -> Theme {
     use damascene_core::shader::UniformValue;
     use damascene_core::tree::SurfaceRole;
 
     Theme::default()
-        .with_palette(palette())
+        .with_palette(palette)
         .with_default_component_size(ComponentSize::Xs)
         .with_radius_scale(RADIUS_SCALE)
         .with_shadow_scale(0.0)
@@ -430,6 +676,71 @@ pub fn theme() -> Theme {
         )
         .with_font_family(FontFamily::Inter)
         .with_mono_font_family(FontFamily::JetBrainsMono)
+}
+
+/// **The workbench theme.** [`slate_palette`] — slate + blue with the VS
+/// Code keys remapped onto its slots — over `Xs` controls,
+/// [`RADIUS_SCALE`], flat chrome with shadowed overlays, Inter +
+/// JetBrains Mono.
+///
+/// Ratified 2026-07-27 (`docs/WORKBENCH_VISION.md`, §"Retarget
+/// ratified"): the crate's payload is the VS Code *key vocabulary*, the
+/// density profile and the chrome recipes; only the values were ever
+/// VS-Code-specific, and they now come from the stock palette. For Dark
+/// Modern's values, use [`dark_modern`] — same profile, same keys, the
+/// calibrated colors.
+///
+/// The four structural inversions from `docs/WORKBENCH_VISION.md`,
+/// and where each one lives:
+///
+/// 1. **Control scale** — `with_default_component_size(Xs)` puts stock
+///    buttons and inputs on the 28px rung instead of shadcn's 36px `Md`,
+///    and [`TYPE_SCALE`] takes the whole type ladder to VS Code's 13px
+///    baseline (body/label 13px, captions ~11px).
+/// 2. **Radius + shadow** — [`RADIUS_SCALE`] takes every theme-default
+///    corner, controls included, down to the 1–3.5px band, and
+///    `with_shadow_scale(0.0)` flattens every recipe shadow: cards and
+///    buttons stop floating. Overlays are re-elevated selectively — a
+///    `Popover`-role uniform restores `SHADOW_MD` on menus, tooltips,
+///    dialogs, and palettes, matching VS Code's shadowed
+///    `widget.shadow` on its otherwise flat chrome.
+/// 3. **Layered surfaces** — the chrome-grounds-take-`card` rows of
+///    [`register_workbench_tokens_from_palette`], plus
+///    [`crate::chrome`]'s hairline separators. The *direction* is the
+///    retarget's one visible break with VS Code: chrome now rises above
+///    the content well (`#18191B` over `#111113`) where Dark Modern
+///    sinks it below (`#181818` under `#1F1F1F`).
+/// 4. **Whitespace** — the crate's chrome recipes; the stock container
+///    paddings are unchanged, because damascene deliberately has no
+///    density knob (`docs/VOCABULARY_PARITY.md`, "Rejected").
+///
+/// Inversions 1, 2 and 4 are density, not color: they are unchanged by
+/// the retarget and shared with [`dark_modern`] through the same
+/// builder.
+///
+/// Fonts follow the stock configuration — Inter for UI, JetBrains Mono
+/// for code — which is also what a default `Theme` already carries. Both
+/// are set explicitly so the theme states its whole intent in one place
+/// rather than inheriting half of it.
+pub fn theme() -> Theme {
+    profile(slate_palette())
+}
+
+/// The workbench profile painted in **VS Code Dark Modern** — [`palette`]
+/// and [`register_workbench_tokens`], i.e. every key on its calibrated
+/// upstream value (`references/vscode-calibration/`).
+///
+/// This was the crate's `theme()` through 2026-07-27 and is byte-identical
+/// to it: same density profile, same key set, Dark Modern's colors. It
+/// stays because the calibration is paid for and proven, and because it
+/// is the reference a "make it look like VS Code" request means
+/// literally.
+///
+/// Note that it keeps VS Code's *sunken* chrome model (`sideBar.background`
+/// darker than `editor.background`), where [`theme`] raises chrome above
+/// the content well.
+pub fn dark_modern() -> Theme {
+    profile(palette())
 }
 
 #[cfg(test)]
@@ -582,7 +893,13 @@ mod tests {
     #[test]
     fn theme_builds_with_the_workbench_palette_and_metrics() {
         let t = theme();
-        assert_eq!(rgb(t.palette().card), rgb(vs::SIDE_BAR_BG));
+        // The default paints slate, not Dark Modern (ratified
+        // 2026-07-27) — card is the stock `#18191B`.
+        assert_eq!(
+            rgb(t.palette().card),
+            rgb(Palette::radix_slate_blue_dark().card)
+        );
+        assert_ne!(rgb(t.palette().card), rgb(vs::SIDE_BAR_BG));
         assert_eq!(
             t.metrics().default_component_size(),
             ComponentSize::Xs,
@@ -591,5 +908,267 @@ mod tests {
         assert_eq!(t.metrics().radius_scale(), RADIUS_SCALE);
         assert_eq!(t.mono_font_family(), FontFamily::JetBrainsMono);
         assert_eq!(t.font_family(), FontFamily::Inter);
+    }
+
+    // -----------------------------------------------------------------
+    // The 2026-07-27 retarget: slate values under the VS Code keys,
+    // Dark Modern demoted to a variant.
+    // -----------------------------------------------------------------
+
+    fn u8s(c: damascene_core::tree::Color) -> [u8; 3] {
+        let [r, g, b, _] = c.to_srgb_u8a();
+        [r, g, b]
+    }
+
+    #[test]
+    fn the_two_themes_are_pinned_to_their_backgrounds() {
+        // One assertion each, on the value a screenshot can be probed
+        // for: the default is the stock slate ramp, the variant is
+        // Dark Modern's editor grey.
+        assert_eq!(u8s(theme().palette().background), [0x11, 0x11, 0x13]);
+        assert_eq!(rgb(dark_modern().palette().background), rgb(vs::EDITOR_BG));
+        assert_eq!(rgb(dark_modern().palette().card), rgb(vs::SIDE_BAR_BG));
+    }
+
+    #[test]
+    fn the_same_keys_resolve_to_slate_by_default_and_dark_modern_in_the_variant() {
+        let slate = slate_palette();
+        let dm = palette();
+
+        // Chrome ground: the value round-2 measured, and the value VS
+        // Code ships.
+        assert_eq!(
+            u8s(slate.lookup("sideBar.background").unwrap()),
+            [0x18, 0x19, 0x1B]
+        );
+        assert_eq!(
+            u8s(dm.lookup("sideBar.background").unwrap()),
+            [0x18, 0x18, 0x18]
+        );
+        // Primary action fill.
+        assert_eq!(
+            u8s(slate.lookup("button.background").unwrap()),
+            [0x00, 0x90, 0xFF]
+        );
+        assert_eq!(
+            u8s(dm.lookup("button.background").unwrap()),
+            [0x00, 0x78, 0xD4]
+        );
+        // Content well.
+        assert_eq!(
+            u8s(slate.lookup("editor.background").unwrap()),
+            [0x11, 0x11, 0x13]
+        );
+        assert_eq!(
+            u8s(dm.lookup("editor.background").unwrap()),
+            [0x1F, 0x1F, 0x1F]
+        );
+    }
+
+    #[test]
+    fn chrome_rises_above_the_content_well_under_the_default() {
+        // The retarget's structural break: VS Code sinks chrome below the
+        // editor, the shadcn genre raises it above the content. Both
+        // models must stay *layered* — the failure mode is collapse.
+        let slate = slate_palette();
+        assert!(
+            slate.card.r > slate.background.r,
+            "chrome rises above content in the slate default"
+        );
+        assert!(
+            palette().card.r < palette().background.r,
+            "Dark Modern keeps its sunken chrome"
+        );
+        assert_ne!(rgb(slate.card), rgb(slate.background));
+    }
+
+    #[test]
+    fn remapped_keys_take_the_slot_that_owns_their_semantic() {
+        let p = slate_palette();
+        let same = |key: &str, slot: damascene_core::tree::Color| {
+            assert_eq!(
+                u8s(p.lookup(key).unwrap_or_else(|| panic!("{key} unresolved"))),
+                u8s(slot),
+                "{key}"
+            );
+        };
+        let stock = Palette::radix_slate_blue_dark();
+
+        // Chrome grounds, all one slot, so a palette swap moves the
+        // whole shell at once.
+        for key in [
+            "sideBar.background",
+            "sideBarSectionHeader.background",
+            "statusBar.background",
+            "titleBar.activeBackground",
+            "activityBar.background",
+            "panel.background",
+            "editorGroupHeader.tabsBackground",
+            "tab.inactiveBackground",
+        ] {
+            same(key, stock.card);
+        }
+        // Content, and the active tab that is continuous with it.
+        same("editor.background", stock.background);
+        same("tab.activeBackground", stock.background);
+        // Floating family.
+        for key in [
+            "quickInput.background",
+            "editorWidget.background",
+            "menu.background",
+            "dropdown.listBackground",
+        ] {
+            same(key, stock.popover);
+        }
+        // Borders: chrome on `border`, controls on `input`.
+        for key in [
+            "sideBar.border",
+            "sideBarSectionHeader.border",
+            "statusBar.border",
+            "titleBar.border",
+            "activityBar.border",
+            "panel.border",
+            "tab.border",
+            "editorGroupHeader.tabsBorder",
+            "editorGroup.border",
+            "pickerGroup.border",
+        ] {
+            same(key, stock.border);
+        }
+        for key in [
+            "input.border",
+            "dropdown.border",
+            "checkbox.border",
+            "widget.border",
+        ] {
+            same(key, stock.input);
+        }
+        // Roles.
+        same("button.foreground", stock.primary_foreground);
+        same("button.secondaryBackground", stock.secondary);
+        same("button.secondaryForeground", stock.secondary_foreground);
+        same("badge.background", stock.secondary);
+        same("focusBorder", stock.ring);
+        same("descriptionForeground", stock.muted_foreground);
+        same("errorForeground", stock.destructive);
+        same("textLink.foreground", stock.link_foreground);
+        same("editorGutter.addedBackground", stock.success);
+        same("editorGutter.modifiedBackground", stock.info);
+        same("editorGutter.deletedBackground", stock.destructive);
+        same("chat.editedFileForeground", stock.warning);
+        same("list.hoverBackground", stock.muted);
+        same("list.activeSelectionBackground", stock.accent);
+        same("tab.activeBorderTop", stock.primary);
+    }
+
+    #[test]
+    fn input_background_is_the_trough_stock_inputs_actually_render() {
+        // `SurfaceRole::Input` derives its fill as
+        // `palette.resolve(MUTED).darken(0.08)`; the key names that
+        // derived value, not `muted` itself, or the label would sit one
+        // step off the control it describes.
+        let p = slate_palette();
+        let stock = Palette::radix_slate_blue_dark();
+        let trough = stock.resolve(damascene_core::tokens::MUTED).darken(0.08);
+        for key in [
+            "input.background",
+            "dropdown.background",
+            "checkbox.background",
+        ] {
+            assert_eq!(u8s(p.lookup(key).unwrap()), u8s(trough), "{key}");
+        }
+        assert_ne!(
+            u8s(trough),
+            u8s(stock.muted),
+            "the darken must do something"
+        );
+    }
+
+    #[test]
+    fn no_key_keeps_a_dark_modern_value_in_the_default() {
+        // The retarget's completeness check: every registered key must
+        // resolve to something in the *new* palette's vocabulary — a
+        // slot value or the derived input trough. A key forgotten in the
+        // remap would resolve to its Dark Modern literal, which is not
+        // in this set, and land here.
+        let p = slate_palette();
+        let stock = Palette::radix_slate_blue_dark();
+        let mut allowed: Vec<[u8; 3]> = [
+            stock.background,
+            stock.foreground,
+            stock.card,
+            stock.card_foreground,
+            stock.popover,
+            stock.popover_foreground,
+            stock.primary,
+            stock.primary_foreground,
+            stock.secondary,
+            stock.secondary_foreground,
+            stock.muted,
+            stock.muted_foreground,
+            stock.accent,
+            stock.accent_foreground,
+            stock.destructive,
+            stock.destructive_foreground,
+            stock.border,
+            stock.input,
+            stock.ring,
+            stock.success,
+            stock.warning,
+            stock.info,
+            stock.link_foreground,
+        ]
+        .iter()
+        .map(|c| u8s(*c))
+        .collect();
+        allowed.push(u8s(stock
+            .resolve(damascene_core::tokens::MUTED)
+            .darken(0.08)));
+        allowed.push(u8s(stock.primary.darken(0.12))); // button.hoverBackground
+
+        for c in crate::tokens::ALL {
+            let key = c.token.expect("workbench tokens carry their key");
+            let resolved = p
+                .lookup(key)
+                .unwrap_or_else(|| panic!("{key} is not registered on the slate palette"));
+            assert!(
+                allowed.contains(&u8s(resolved)),
+                "{key} resolved to {:?}, which is not a slate palette value \
+                 — it probably kept its Dark Modern literal",
+                u8s(resolved)
+            );
+        }
+    }
+
+    #[test]
+    fn the_remap_is_slot_derived_so_it_follows_any_palette() {
+        // Not slate-specific: the same call over a different stock
+        // palette must move every key with it. This is the property that
+        // makes the next palette swap one line.
+        let sand = register_workbench_tokens_from_palette(Palette::radix_sand_amber_dark());
+        assert_eq!(
+            u8s(sand.lookup("sideBar.background").unwrap()),
+            u8s(Palette::radix_sand_amber_dark().card)
+        );
+        assert_eq!(
+            u8s(sand.lookup("button.background").unwrap()),
+            u8s(Palette::radix_sand_amber_dark().primary)
+        );
+    }
+
+    #[test]
+    fn the_two_themes_differ_only_in_their_palette() {
+        // Density is not color: the retarget must not have moved a
+        // metric. Both themes come out of one builder, and this is the
+        // tripwire if that ever forks.
+        let d = theme();
+        let m = dark_modern();
+        assert_eq!(
+            d.metrics().default_component_size(),
+            m.metrics().default_component_size()
+        );
+        assert_eq!(d.metrics().radius_scale(), m.metrics().radius_scale());
+        assert_eq!(d.font_family(), m.font_family());
+        assert_eq!(d.mono_font_family(), m.mono_font_family());
     }
 }

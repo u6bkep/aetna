@@ -167,10 +167,11 @@ where
 
 /// A 1px horizontal rule in `tokens::BORDER`.
 ///
-/// Under [`crate::theme::theme`] that token resolves to
-/// [`vs::PANEL_BORDER`] (`panel.border`, `#2B2B2B`); it is written as
-/// the *stock* token rather than the workbench one so the rule follows a
-/// palette swap in a downstream theme of this vocabulary.
+/// It resolves to the same value as [`vs::PANEL_BORDER`] under both of
+/// this crate's themes — `#363A3F` under [`crate::theme::theme`],
+/// `#2B2B2B` (`panel.border`) under [`crate::theme::dark_modern`] — and
+/// is written as the *stock* token rather than the workbench one so the
+/// rule follows a palette swap in a downstream theme of this vocabulary.
 ///
 /// Per-side borders make this unnecessary for the common cases — a bar
 /// separating itself from what is above or below it should use
@@ -278,12 +279,22 @@ mod tests {
     }
 
     #[test]
-    fn hairline_resolves_to_the_panel_border_under_this_theme() {
-        let p = crate::theme::palette();
-        let fill = hairline().fill.expect("hairline is filled");
-        let resolved = p.resolve(fill);
+    fn hairline_and_panel_border_are_one_value_under_both_themes() {
+        // The rule paints the *stock* token while the bars around it
+        // paint `panel.border`. If the two ever diverge, every region
+        // separator in the crate stops matching the rules between them —
+        // so assert it on both palettes rather than on Dark Modern's
+        // alone, where the mapping happens to be an identity.
+        for p in [crate::theme::palette(), crate::theme::slate_palette()] {
+            let fill = hairline().fill.expect("hairline is filled");
+            let rule = p.resolve(fill);
+            let border = p.resolve(vs::PANEL_BORDER);
+            assert_eq!((rule.r, rule.g, rule.b), (border.r, border.g, border.b));
+        }
+        // And under Dark Modern it is still VS Code's own hairline.
+        let dm = crate::theme::palette().resolve(hairline().fill.unwrap());
         assert_eq!(
-            (resolved.r, resolved.g, resolved.b),
+            (dm.r, dm.g, dm.b),
             (vs::PANEL_BORDER.r, vs::PANEL_BORDER.g, vs::PANEL_BORDER.b)
         );
     }

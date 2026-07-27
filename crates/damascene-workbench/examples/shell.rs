@@ -141,7 +141,7 @@ impl Shell {
                 text("//   2. corners at ~2px, controls included")
                     .mono()
                     .caption(),
-                text("//   3. side bar and bars sink below the editor")
+                text("//   3. side bar and bars step above the content well")
                     .mono()
                     .caption(),
                 text("//   4. regions meet on 1px borders, not gaps")
@@ -151,15 +151,16 @@ impl Shell {
             .gap(tokens::SPACE_1)
             .width(Size::Fill(1.0)),
             spacer(),
-            // A stock card. Under this theme its fill is
-            // `sideBar.background`, so it reads as a docked panel rather
-            // than a sheet floating on the canvas.
+            // A stock card. Under this theme its fill is the same value
+            // the chrome is painted with (`sideBar.background` names it),
+            // so it reads as a docked panel rather than a sheet floating
+            // on the canvas.
             card([
                 card_header([card_title("Panel, not card")]),
                 card_content([text(
-                    "Same stock `card()` as anywhere else. The palette's \
-                     `card` slot points at `sideBar.background`, one value \
-                     step below the editor — so containment reads as a \
+                    "Same stock `card()` as anywhere else. The `card` slot \
+                     is what `sideBar.background` names, one value step \
+                     above the content well — so containment reads as a \
                      level, not as an outline.",
                 )
                 .caption()]),
