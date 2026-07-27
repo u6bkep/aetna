@@ -107,7 +107,7 @@ fn palette() -> Palette {
 
         selection_bg: C_ACCENT_DIM,
 
-        ..workbench::palette()
+        ..workbench::dark_modern_palette()
     };
 
     workbench::register_workbench_tokens(p)

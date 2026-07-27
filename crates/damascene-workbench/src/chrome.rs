@@ -285,14 +285,14 @@ mod tests {
         // separator in the crate stops matching the rules between them —
         // so assert it on both palettes rather than on Dark Modern's
         // alone, where the mapping happens to be an identity.
-        for p in [crate::theme::palette(), crate::theme::slate_palette()] {
+        for p in [crate::theme::dark_modern_palette(), crate::theme::slate_palette()] {
             let fill = hairline().fill.expect("hairline is filled");
             let rule = p.resolve(fill);
             let border = p.resolve(vs::PANEL_BORDER);
             assert_eq!((rule.r, rule.g, rule.b), (border.r, border.g, border.b));
         }
         // And under Dark Modern it is still VS Code's own hairline.
-        let dm = crate::theme::palette().resolve(hairline().fill.unwrap());
+        let dm = crate::theme::dark_modern_palette().resolve(hairline().fill.unwrap());
         assert_eq!(
             (dm.r, dm.g, dm.b),
             (vs::PANEL_BORDER.r, vs::PANEL_BORDER.g, vs::PANEL_BORDER.b)

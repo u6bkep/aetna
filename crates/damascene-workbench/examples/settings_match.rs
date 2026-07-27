@@ -629,7 +629,7 @@ fn palette() -> Palette {
 
         selection_bg: REF_ACCENT,
 
-        ..theme::palette()
+        ..theme::dark_modern_palette()
     };
 
     p.with_token("editor.background", REF_CONTENT)
