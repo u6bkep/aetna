@@ -427,7 +427,7 @@ The same shape extends to selection-style widgets. `tabs_list("k", &self.tab, [.
 
 Two-state controls follow the same controlled pattern in their simplest form. `switch("auto_save", self.auto_save)` (track + thumb, like shadcn Switch) and `checkbox("agree", self.agree)` (square + check, like shadcn Checkbox) project a `bool` into a visual; `switch::apply_event(&mut self.auto_save, &event, "auto_save")` and `checkbox::apply_event` fold clicks back into the field. They share the same one-shape rule: app owns the `bool`, widget projects it, helper folds the event.
 
-Read-only data displays skip the helper entirely. `progress(value)` (like shadcn Progress) draws a track + filled portion for a `0.0..=1.0` ratio; there is no `apply_event` because the widget doesn't accept input — the underlying value is whatever the app derived from a snapshot, timer, or computation.
+Read-only data displays skip the helper entirely. `progress(value)` (like shadcn Progress) draws a track + filled portion for a `0.0..=1.0` ratio; there is no `apply_event` because the widget doesn't accept input — the underlying value is whatever the app derived from a snapshot, timer, or computation. `meter(value)` is its instrumentation sibling — the web platform's `<meter>` rather than a shadcn component, for a *measurement* inside a range (audio input level, CPU load, disk pressure): thinner, never animated, never indeterminate, and optionally three-band colored from `MeterOpts::default().low(..).high(..)`.
 
 There is also an advanced `UiState::widget_state::<T>` typed bucket used
 by tests, diagnostics, and future host/widget experiments. Normal widget
