@@ -399,7 +399,7 @@ mod tests {
         .padding(Sides::all(tokens::SPACE_4));
         let mut state = UiState::new();
         layout(&mut root, &mut state, Rect::new(0.0, 0.0, 400.0, 120.0));
-        let report = crate::bundle::lint::lint(&root, &state);
+        let report = crate::bundle::lint::lint(&root, &state, &crate::theme::Theme::default());
         let relevant: Vec<_> = report
             .findings
             .iter()

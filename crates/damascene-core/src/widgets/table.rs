@@ -177,6 +177,12 @@ where
 /// For a row whose cells follow a shared [`TableColumn`] spec, use
 /// [`table_row_cells`] — it builds this row and stamps the column
 /// geometry in one call.
+///
+/// The row is also where the theme's density lands: the metrics pass
+/// stamps the resolved
+/// [`ComponentSize`](crate::metrics::ComponentSize)'s cell padding onto
+/// this row's children (see [`table_cell`]). `.size(...)` on the row
+/// picks a rung for that row alone.
 #[track_caller]
 pub fn table_row<I, E>(cells: I) -> El
 where
@@ -470,7 +476,9 @@ pub fn table_head(label: impl Into<String>) -> El {
 /// recursively restyles text descendants to the muted caption treatment.
 ///
 /// Like [`table_head`], sized `Size::Fill(1.0)`; see
-/// [`table_header_cells`] for the column-spec path.
+/// [`table_header_cells`] for the column-spec path. Padding follows the
+/// theme's [`ComponentSize`](crate::metrics::ComponentSize) rung exactly
+/// as [`table_cell`]'s does.
 #[track_caller]
 pub fn table_head_el(content: impl Into<El>) -> El {
     let mut el = content
@@ -479,7 +487,9 @@ pub fn table_head_el(content: impl Into<El>) -> El {
         .ellipsis()
         .width(Size::Fill(1.0))
         .height(Size::Hug)
-        .padding(Sides::xy(tokens::SPACE_3, tokens::SPACE_2))
+        // The `Md` rung's value, restated as the bare-constructor
+        // default — see `table_cell`.
+        .default_padding(Sides::xy(tokens::SPACE_3, tokens::SPACE_2))
         .radius(0.0);
     // The cell chrome is applied to the content El itself (no wrapper
     // node), so only stamp the header-cell role when the content
@@ -502,6 +512,18 @@ pub fn table_head_el(content: impl Into<El>) -> El {
 /// [`table_row_cells`] and a shared [`TableColumn`] spec — this
 /// constructor stays the escape hatch for a row that needs per-cell
 /// chrome the spec doesn't describe.
+///
+/// # Padding is on the size ladder
+///
+/// Cell padding is the one container metric the
+/// [`ComponentSize`](crate::metrics::ComponentSize) ladder keys, because
+/// the row pitch it sets is what makes a data view read dense or airy.
+/// The metrics pass stamps the theme's resolved rung onto every cell of
+/// a [`table_row`], sized so the **row's content box matches a control
+/// of that rung** — 36 px at `Md` (shadcn's own, and the value this
+/// constructor bakes as its bare default), 28 px at `Xs`, which is what
+/// `damascene_workbench::theme` ships. An explicit `.padding(...)` /
+/// `.py(...)` on the cell opts out and survives untouched.
 #[track_caller]
 pub fn table_cell(content: impl Into<El>) -> El {
     let el = content
@@ -510,7 +532,10 @@ pub fn table_cell(content: impl Into<El>) -> El {
         .ellipsis()
         .width(Size::Fill(1.0))
         .height(Size::Hug)
-        .padding(Sides::xy(tokens::SPACE_3, tokens::SPACE_2))
+        // shadcn's `p-2 px-3`, which is also the ladder's `Md` rung —
+        // so a cell that never meets the metrics pass (a bare unit test,
+        // a fragment built outside a `table_row`) still looks right.
+        .default_padding(Sides::xy(tokens::SPACE_3, tokens::SPACE_2))
         .radius(0.0);
     // As in [`table_head_el`]: the chrome lands on the content El
     // itself, so keep any role the content already carries (e.g. a
@@ -617,11 +642,22 @@ mod tests {
     fn table_rows_are_border_separated_not_grid() {
         // shadcn table anatomy: padded borderless cells, transparent
         // header, and `border-b` on every row but the last.
+        //
+        // The padding here is the *constructor default* — the ladder's
+        // `Md` rung, which is the value this constructor hardcoded
+        // before cell padding joined `ComponentSize`. `explicit_padding`
+        // must stay false or the metrics pass can never densify it; see
+        // `metrics::tests::the_default_component_size_densifies_a_table_end_to_end`.
         let body_cell = table_cell(text("Ada"));
         assert_eq!(
             body_cell.padding,
             Sides::xy(tokens::SPACE_3, tokens::SPACE_2)
         );
+        assert!(
+            !body_cell.explicit_padding,
+            "a stock cell's padding belongs to the theme, not the author"
+        );
+        assert!(!table_head("Name").explicit_padding);
         assert_eq!(body_cell.stroke, None);
         assert_eq!(body_cell.radius, Corners::ZERO);
 
@@ -816,7 +852,8 @@ mod tests {
         let r = table_row_cells("part:R14", COLS, [text("R14"), text("10k")]);
         assert_eq!(r.key.as_deref(), Some("part:R14"));
         assert_eq!(r.metrics_role, Some(MetricsRole::TableRow));
-        // Cells still carry the stock `table_cell` chrome.
+        // Cells still carry the stock `table_cell` chrome — the `Md`
+        // constructor default, before any theme has stamped a rung.
         assert_eq!(
             r.children[0].padding,
             Sides::xy(tokens::SPACE_3, tokens::SPACE_2)
@@ -885,7 +922,11 @@ mod tests {
                         ],
                     )
                     .focusable();
-                    if outward_rings { r.focus_ring_outside() } else { r }
+                    if outward_rings {
+                        r.focus_ring_outside()
+                    } else {
+                        r
+                    }
                 })
                 .collect();
             crate::tree::column([table([
@@ -901,7 +942,7 @@ mod tests {
         fn obscured(mut root: El) -> Vec<String> {
             let mut state = UiState::new();
             layout(&mut root, &mut state, Rect::new(0.0, 0.0, 720.0, 400.0));
-            crate::bundle::lint::lint(&root, &state)
+            crate::bundle::lint::lint(&root, &state, &crate::theme::Theme::default())
                 .findings
                 .into_iter()
                 .filter(|f| f.kind == FindingKind::FocusRingObscured)

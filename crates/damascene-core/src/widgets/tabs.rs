@@ -760,6 +760,7 @@ mod tests {
                 rect: Rect::new(0.0, 0.0, 60.0, 28.0),
                 tooltip: None,
                 scroll_offset_y: 0.0,
+                content_inset: Sides::zero(),
             }),
             pointer: None,
             key_press: None,

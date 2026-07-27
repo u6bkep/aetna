@@ -190,6 +190,54 @@ impl Palette {
     // each constructor's comment; every one clears 3:1 material over
     // `card` and 4.5:1 label over the fill.
 
+    // ---- Picking a status `*-foreground` -----------------------------
+    //
+    // `primary`, `destructive`, `success`, `warning` and `info` are the
+    // five **solid** roles: `button(..).info()`, a tinted chip, a toast
+    // header all paint the fill and set the label to the paired
+    // `*-foreground`. That label is caption-to-body sized, so the pair
+    // is held to WCAG's small-text floor, **4.5:1** — the same floor
+    // `badge_foreground` is solved for one section up.
+    //
+    // The fills are ratified and do not move. What moves is the
+    // foreground, and the rule is: **take whichever end of the fill's
+    // own hue ramp wins**, not "white on color". That reflex is what
+    // this section exists to correct. Every one of these ramps spends
+    // its step 9 / -500 rung on the solid fill, and a step 9 is
+    // engineered for ~3:1 against white — a *large-text* / non-text
+    // floor. Measured before this retune: Radix blue-9 `#0090FF` on
+    // white was 3.26:1, red-9 `#E5484D` 3.91:1, Tailwind blue-500
+    // `#3B82F6` under near-white 3.38:1. All three are legible-looking
+    // and all three miss AA for a chip label.
+    //
+    // So a bright fill takes a **hue-tinted near-black** label, which
+    // is the move `warning_foreground` (`#4F3422` on amber-9, 7.2:1)
+    // and the dark variants' `success_foreground` (`#0E1512` on
+    // green-9, 5.9:1) already made. Where the ramp publishes a dark
+    // end deep enough, that step is used verbatim: Radix's dark-scale
+    // step 1 (`#0D1520` blue, `#191111` red, `#0E1512` green). Where
+    // it does not — Tailwind's ramp bottoms out at -950, and blue-950
+    // `#172554` only reaches 4.00:1 on blue-500 — the -950 step is
+    // taken one stop further down its own line toward black
+    // (`#172554` × 0.5 → `#0C122A`, `#450A0A` × 0.6 → `#290606`),
+    // which keeps the hue and buys the margin.
+    //
+    // Only a genuinely dark fill keeps a light label: zinc's
+    // `destructive` is red-900 `#7F1D1D` (near-white, 9.6:1), and
+    // violet-9 `#6E56CF` is deep enough that white still wins at
+    // 5.4:1 — its black end would only reach 3.9:1.
+    //
+    // Measured ratios per variant are in each constructor's comment,
+    // and `status_foregrounds_clear_the_small_text_floor` asserts the
+    // floor across every stock variant so an edit here cannot regress
+    // it. The one exception is outside this file:
+    // `damascene-workbench`'s `dark_modern_palette` **transcribes** VS
+    // Code's own keys, where `button.foreground` is `#FFFFFF` over
+    // `#F85149`/`#2EA043` at 3.35:1/3.37:1. The calibration plan
+    // forbids inventing values there, so the reference wins and the
+    // workbench test records by how much — the same precedent the chip
+    // material set.
+
     /// Damascene's default dark palette, copied from shadcn/ui's zinc dark
     /// theme scaffold. These rgba values also serve as the compile-time
     /// fallback baked into the constants in [`crate::tokens`].
@@ -223,12 +271,20 @@ impl Palette {
             input: Color::srgb_token("input", 39, 39, 42, 255),
             ring: Color::srgb_token("ring", 212, 212, 216, 255),
 
+            // Status labels, all on the ramp's dark end (see "Picking a
+            // status `*-foreground`"): success green-950 5.88:1,
+            // warning amber-950 6.97:1. `info` is the one that had to
+            // go past the published ramp — blue-950 `#172554` reaches
+            // only 4.00:1 on blue-500, so the label is that step taken
+            // half-way further to black, 5.03:1 (was `#EFF6FF`,
+            // **3.38:1**). `destructive` above keeps its near-white
+            // label because red-900 is a genuinely dark fill (9.60:1).
             success: Color::srgb_token("success", 16, 185, 129, 255),
             success_foreground: Color::srgb_token("success-foreground", 5, 46, 22, 255),
             warning: Color::srgb_token("warning", 245, 158, 11, 255),
             warning_foreground: Color::srgb_token("warning-foreground", 69, 26, 3, 255),
             info: Color::srgb_token("info", 59, 130, 246, 255),
-            info_foreground: Color::srgb_token("info-foreground", 239, 246, 255, 255),
+            info_foreground: Color::srgb_token("info-foreground", 12, 18, 42, 255),
             destructive_tint_foreground: Color::srgb_token(
                 "destructive-tint-foreground",
                 248,
@@ -302,8 +358,14 @@ impl Palette {
             accent: Color::srgb_token("accent", 244, 244, 245, 255),
             accent_foreground: Color::srgb_token("accent-foreground", 24, 24, 27, 255),
 
+            // Light mode's `destructive` is red-**500**, not the dark
+            // variant's red-900, so the near-white label that works
+            // there measured **3.61:1** here. Same treatment as `info`
+            // in the dark variant: red-950 `#450A0A` still only
+            // reaches 4.29:1, so the label is that step taken further
+            // down its own line toward black — 4.97:1.
             destructive: Color::srgb_token("destructive", 239, 68, 68, 255),
-            destructive_foreground: Color::srgb_token("destructive-foreground", 250, 250, 250, 255),
+            destructive_foreground: Color::srgb_token("destructive-foreground", 41, 6, 6, 255),
 
             border: Color::srgb_token("border", 228, 228, 231, 255),
             input: Color::srgb_token("input", 228, 228, 231, 255),
@@ -313,6 +375,11 @@ impl Palette {
             success_foreground: Color::srgb_token("success-foreground", 5, 46, 22, 255),
             warning: Color::srgb_token("warning", 245, 158, 11, 255),
             warning_foreground: Color::srgb_token("warning-foreground", 69, 26, 3, 255),
+            // success 5.88:1, warning 6.97:1 — unchanged. `info` is the
+            // one slot where light and dark disagree on the *direction*
+            // of the label, and legitimately: this is blue-**600**,
+            // dark enough that the near-white label clears at 4.75:1,
+            // where the dark variant's blue-500 needed the black end.
             info: Color::srgb_token("info", 37, 99, 235, 255),
             info_foreground: Color::srgb_token("info-foreground", 239, 246, 255, 255),
             destructive_tint_foreground: Color::srgb_token(
@@ -369,8 +436,13 @@ impl Palette {
             popover: Color::srgb_token("popover", 24, 25, 27, 255),
             popover_foreground: Color::srgb_token("popover-foreground", 237, 238, 240, 255),
 
+            // Blue-9 is the ramp's solid step, engineered for ~3:1
+            // against white: the white label measured **3.26:1**. The
+            // label takes Radix's blue **dark-1** (`#0D1520`) instead
+            // — 5.62:1, and the same value `info-foreground` below
+            // takes, since both slots are this one blue.
             primary: Color::srgb_token("primary", 0, 144, 255, 255),
-            primary_foreground: Color::srgb_token("primary-foreground", 255, 255, 255, 255),
+            primary_foreground: Color::srgb_token("primary-foreground", 13, 21, 32, 255),
 
             secondary: Color::srgb_token("secondary", 33, 34, 37, 255),
             secondary_foreground: Color::srgb_token("secondary-foreground", 237, 238, 240, 255),
@@ -381,8 +453,10 @@ impl Palette {
             accent: Color::srgb_token("accent", 13, 40, 71, 255),
             accent_foreground: Color::srgb_token("accent-foreground", 112, 184, 255, 255),
 
+            // Red-9 under a white label measured **3.91:1**. The label
+            // takes Radix red **dark-1** (`#191111`) — 4.75:1.
             destructive: Color::srgb_token("destructive", 229, 72, 77, 255),
-            destructive_foreground: Color::srgb_token("destructive-foreground", 255, 255, 255, 255),
+            destructive_foreground: Color::srgb_token("destructive-foreground", 25, 17, 17, 255),
 
             border: Color::srgb_token("border", 54, 58, 63, 255),
             input: Color::srgb_token("input", 54, 58, 63, 255),
@@ -392,8 +466,10 @@ impl Palette {
             success_foreground: Color::srgb_token("success-foreground", 14, 21, 18, 255),
             warning: Color::srgb_token("warning", 255, 197, 61, 255),
             warning_foreground: Color::srgb_token("warning-foreground", 79, 52, 34, 255),
+            // Blue-9 under a white label measured **3.26:1**. The label
+            // takes Radix blue **dark-1** (`#0D1520`) — 5.62:1.
             info: Color::srgb_token("info", 0, 144, 255, 255),
-            info_foreground: Color::srgb_token("info-foreground", 255, 255, 255, 255),
+            info_foreground: Color::srgb_token("info-foreground", 13, 21, 32, 255),
             destructive_tint_foreground: Color::srgb_token(
                 "destructive-tint-foreground",
                 255,
@@ -454,8 +530,10 @@ impl Palette {
             popover: Color::srgb_token("popover", 255, 255, 255, 255),
             popover_foreground: Color::srgb_token("popover-foreground", 28, 32, 36, 255),
 
+            // Same blue-9 as the dark variant, same **3.26:1** white
+            // label, same fix: Radix blue dark-1, 5.62:1.
             primary: Color::srgb_token("primary", 0, 144, 255, 255),
-            primary_foreground: Color::srgb_token("primary-foreground", 255, 255, 255, 255),
+            primary_foreground: Color::srgb_token("primary-foreground", 13, 21, 32, 255),
 
             secondary: Color::srgb_token("secondary", 240, 240, 243, 255),
             secondary_foreground: Color::srgb_token("secondary-foreground", 28, 32, 36, 255),
@@ -466,19 +544,28 @@ impl Palette {
             accent: Color::srgb_token("accent", 230, 244, 254, 255),
             accent_foreground: Color::srgb_token("accent-foreground", 13, 116, 206, 255),
 
+            // Red-9 under a white label measured **3.91:1**. The label
+            // takes Radix red **dark-1** (`#191111`) — 4.75:1.
             destructive: Color::srgb_token("destructive", 229, 72, 77, 255),
-            destructive_foreground: Color::srgb_token("destructive-foreground", 255, 255, 255, 255),
+            destructive_foreground: Color::srgb_token("destructive-foreground", 25, 17, 17, 255),
 
             border: Color::srgb_token("border", 217, 217, 224, 255),
             input: Color::srgb_token("input", 205, 206, 214, 255),
             ring: Color::srgb_token("ring", 0, 144, 255, 255),
 
+            // The light variants used to take green-12 (`#193B2D`)
+            // here, one rung short at **3.90:1**. They now take the
+            // same green **dark-1** (`#0E1512`) the dark variants use
+            // — 5.86:1. Green-9 is one value across the whole stock
+            // set, so its label may as well be too.
             success: Color::srgb_token("success", 48, 164, 108, 255),
-            success_foreground: Color::srgb_token("success-foreground", 25, 59, 45, 255),
+            success_foreground: Color::srgb_token("success-foreground", 14, 21, 18, 255),
             warning: Color::srgb_token("warning", 255, 197, 61, 255),
             warning_foreground: Color::srgb_token("warning-foreground", 79, 52, 34, 255),
+            // Blue-9 under a white label measured **3.26:1**. The label
+            // takes Radix blue **dark-1** (`#0D1520`) — 5.62:1.
             info: Color::srgb_token("info", 0, 144, 255, 255),
-            info_foreground: Color::srgb_token("info-foreground", 255, 255, 255, 255),
+            info_foreground: Color::srgb_token("info-foreground", 13, 21, 32, 255),
             destructive_tint_foreground: Color::srgb_token(
                 "destructive-tint-foreground",
                 206,
@@ -553,8 +640,10 @@ impl Palette {
             accent: Color::srgb_token("accent", 48, 32, 8, 255),
             accent_foreground: Color::srgb_token("accent-foreground", 255, 202, 22, 255),
 
+            // Red-9 under a white label measured **3.91:1**. The label
+            // takes Radix red **dark-1** (`#191111`) — 4.75:1.
             destructive: Color::srgb_token("destructive", 229, 72, 77, 255),
-            destructive_foreground: Color::srgb_token("destructive-foreground", 255, 255, 255, 255),
+            destructive_foreground: Color::srgb_token("destructive-foreground", 25, 17, 17, 255),
 
             border: Color::srgb_token("border", 59, 58, 55, 255),
             input: Color::srgb_token("input", 59, 58, 55, 255),
@@ -564,8 +653,10 @@ impl Palette {
             success_foreground: Color::srgb_token("success-foreground", 14, 21, 18, 255),
             warning: Color::srgb_token("warning", 255, 197, 61, 255),
             warning_foreground: Color::srgb_token("warning-foreground", 79, 52, 34, 255),
+            // Blue-9 under a white label measured **3.26:1**. The label
+            // takes Radix blue **dark-1** (`#0D1520`) — 5.62:1.
             info: Color::srgb_token("info", 0, 144, 255, 255),
-            info_foreground: Color::srgb_token("info-foreground", 255, 255, 255, 255),
+            info_foreground: Color::srgb_token("info-foreground", 13, 21, 32, 255),
             destructive_tint_foreground: Color::srgb_token(
                 "destructive-tint-foreground",
                 255,
@@ -639,19 +730,28 @@ impl Palette {
             accent: Color::srgb_token("accent", 255, 247, 194, 255),
             accent_foreground: Color::srgb_token("accent-foreground", 171, 100, 0, 255),
 
+            // Red-9 under a white label measured **3.91:1**. The label
+            // takes Radix red **dark-1** (`#191111`) — 4.75:1.
             destructive: Color::srgb_token("destructive", 229, 72, 77, 255),
-            destructive_foreground: Color::srgb_token("destructive-foreground", 255, 255, 255, 255),
+            destructive_foreground: Color::srgb_token("destructive-foreground", 25, 17, 17, 255),
 
             border: Color::srgb_token("border", 218, 217, 214, 255),
             input: Color::srgb_token("input", 207, 206, 202, 255),
             ring: Color::srgb_token("ring", 255, 197, 61, 255),
 
+            // The light variants used to take green-12 (`#193B2D`)
+            // here, one rung short at **3.90:1**. They now take the
+            // same green **dark-1** (`#0E1512`) the dark variants use
+            // — 5.86:1. Green-9 is one value across the whole stock
+            // set, so its label may as well be too.
             success: Color::srgb_token("success", 48, 164, 108, 255),
-            success_foreground: Color::srgb_token("success-foreground", 25, 59, 45, 255),
+            success_foreground: Color::srgb_token("success-foreground", 14, 21, 18, 255),
             warning: Color::srgb_token("warning", 255, 197, 61, 255),
             warning_foreground: Color::srgb_token("warning-foreground", 79, 52, 34, 255),
+            // Blue-9 under a white label measured **3.26:1**. The label
+            // takes Radix blue **dark-1** (`#0D1520`) — 5.62:1.
             info: Color::srgb_token("info", 0, 144, 255, 255),
-            info_foreground: Color::srgb_token("info-foreground", 255, 255, 255, 255),
+            info_foreground: Color::srgb_token("info-foreground", 13, 21, 32, 255),
             destructive_tint_foreground: Color::srgb_token(
                 "destructive-tint-foreground",
                 206,
@@ -724,8 +824,10 @@ impl Palette {
             accent: Color::srgb_token("accent", 41, 31, 67, 255),
             accent_foreground: Color::srgb_token("accent-foreground", 186, 167, 255, 255),
 
+            // Red-9 under a white label measured **3.91:1**. The label
+            // takes Radix red **dark-1** (`#191111`) — 4.75:1.
             destructive: Color::srgb_token("destructive", 229, 72, 77, 255),
-            destructive_foreground: Color::srgb_token("destructive-foreground", 255, 255, 255, 255),
+            destructive_foreground: Color::srgb_token("destructive-foreground", 25, 17, 17, 255),
 
             border: Color::srgb_token("border", 60, 57, 63, 255),
             input: Color::srgb_token("input", 60, 57, 63, 255),
@@ -735,8 +837,10 @@ impl Palette {
             success_foreground: Color::srgb_token("success-foreground", 14, 21, 18, 255),
             warning: Color::srgb_token("warning", 255, 197, 61, 255),
             warning_foreground: Color::srgb_token("warning-foreground", 79, 52, 34, 255),
+            // Blue-9 under a white label measured **3.26:1**. The label
+            // takes Radix blue **dark-1** (`#0D1520`) — 5.62:1.
             info: Color::srgb_token("info", 0, 144, 255, 255),
-            info_foreground: Color::srgb_token("info-foreground", 255, 255, 255, 255),
+            info_foreground: Color::srgb_token("info-foreground", 13, 21, 32, 255),
             destructive_tint_foreground: Color::srgb_token(
                 "destructive-tint-foreground",
                 255,
@@ -809,19 +913,28 @@ impl Palette {
             accent: Color::srgb_token("accent", 244, 240, 254, 255),
             accent_foreground: Color::srgb_token("accent-foreground", 101, 80, 185, 255),
 
+            // Red-9 under a white label measured **3.91:1**. The label
+            // takes Radix red **dark-1** (`#191111`) — 4.75:1.
             destructive: Color::srgb_token("destructive", 229, 72, 77, 255),
-            destructive_foreground: Color::srgb_token("destructive-foreground", 255, 255, 255, 255),
+            destructive_foreground: Color::srgb_token("destructive-foreground", 25, 17, 17, 255),
 
             border: Color::srgb_token("border", 219, 216, 224, 255),
             input: Color::srgb_token("input", 208, 205, 215, 255),
             ring: Color::srgb_token("ring", 110, 86, 207, 255),
 
+            // The light variants used to take green-12 (`#193B2D`)
+            // here, one rung short at **3.90:1**. They now take the
+            // same green **dark-1** (`#0E1512`) the dark variants use
+            // — 5.86:1. Green-9 is one value across the whole stock
+            // set, so its label may as well be too.
             success: Color::srgb_token("success", 48, 164, 108, 255),
-            success_foreground: Color::srgb_token("success-foreground", 25, 59, 45, 255),
+            success_foreground: Color::srgb_token("success-foreground", 14, 21, 18, 255),
             warning: Color::srgb_token("warning", 255, 197, 61, 255),
             warning_foreground: Color::srgb_token("warning-foreground", 79, 52, 34, 255),
+            // Blue-9 under a white label measured **3.26:1**. The label
+            // takes Radix blue **dark-1** (`#0D1520`) — 5.62:1.
             info: Color::srgb_token("info", 0, 144, 255, 255),
-            info_foreground: Color::srgb_token("info-foreground", 255, 255, 255, 255),
+            info_foreground: Color::srgb_token("info-foreground", 13, 21, 32, 255),
             destructive_tint_foreground: Color::srgb_token(
                 "destructive-tint-foreground",
                 206,
@@ -1225,6 +1338,56 @@ mod tests {
                 ratio >= 4.5,
                 "{name}: badge-foreground on badge is {ratio:.2}:1, under the 4.5:1 floor"
             );
+        }
+    }
+
+    /// The five solid roles: fill slot + the foreground painted on it.
+    fn status_pairs(p: &Palette) -> [(&'static str, Color, Color); 5] {
+        [
+            ("primary", p.primary, p.primary_foreground),
+            ("destructive", p.destructive, p.destructive_foreground),
+            ("success", p.success, p.success_foreground),
+            ("warning", p.warning, p.warning_foreground),
+            ("info", p.info, p.info_foreground),
+        ]
+    }
+
+    #[test]
+    fn status_foregrounds_clear_the_small_text_floor() {
+        // `button(..).info()`, a tinted chip and a toast header all
+        // paint the solid fill and set the label to its paired
+        // `*-foreground`. Those labels are caption-to-body sized, so
+        // the small-text floor applies — not the 3:1 non-text one the
+        // ramps' step-9/-500 rungs are engineered for. Before this
+        // was asserted, half the set sat in the 3.2–3.9 band:
+        // slate primary/info 3.26, radix destructive 3.91, radix light
+        // success 3.90, zinc dark info 3.38, zinc light destructive
+        // 3.61. See "Picking a status `*-foreground`" above for how
+        // each replacement value is derived.
+        for (name, p) in all_variants() {
+            for (role, fill, fg) in status_pairs(&p) {
+                let ratio = contrast(fg, fill);
+                assert!(
+                    ratio >= 4.5,
+                    "{name}: {role}-foreground on {role} is {ratio:.2}:1, \
+                     under the 4.5:1 floor"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn status_pairs_are_opaque_so_the_measurement_means_something() {
+        // The contrast above is computed on the pair alone. That is
+        // only the truth the user sees if neither member is a wash
+        // letting a third color through — `resolve` takes alpha from
+        // the requesting color, so a translucent entry here would
+        // measure one thing and paint another.
+        for (name, p) in all_variants() {
+            for (role, fill, fg) in status_pairs(&p) {
+                assert_eq!(fill.a, 1.0, "{name}: {role} must be opaque");
+                assert_eq!(fg.a, 1.0, "{name}: {role}-foreground must be opaque");
+            }
         }
     }
 

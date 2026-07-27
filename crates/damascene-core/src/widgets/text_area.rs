@@ -281,9 +281,9 @@ fn text_area_paint_layer(kind: &'static str, key: &str, value: &str) -> El {
     let mut layer = El::new(Kind::Custom(kind))
         .style_profile(StyleProfile::Solid)
         .width(Size::Fill(1.0))
-        .height(Size::Fill(1.0));
+        .height(Size::Fill(1.0))
+        .tooltip(value);
     layer.text_link = Some(key.to_string());
-    layer.tooltip = Some(value.to_string());
     layer
 }
 
@@ -1073,6 +1073,7 @@ mod tests {
             rect: crate::tree::Rect::new(0.0, 0.0, 200.0, 100.0),
             tooltip: None,
             scroll_offset_y: 0.0,
+            content_inset: crate::tree::Sides::zero(),
         }
     }
 
@@ -1089,6 +1090,7 @@ mod tests {
                 rect: crate::tree::Rect::new(0.0, 0.0, 200.0, 100.0),
                 tooltip: None,
                 scroll_offset_y: 0.0,
+                content_inset: crate::tree::Sides::zero(),
             }),
             pointer: Some((40.0, 30.0)),
             key_press: None,

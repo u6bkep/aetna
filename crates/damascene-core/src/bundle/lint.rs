@@ -299,6 +299,41 @@ pub enum FindingKind {
     /// - If the wrapper sits in an overlay container, prefer a real
     ///   `row`/`column` ancestor — overlay Hug never stretches.
     CollapsedFillChild,
+    /// A paint-carrying node whose **cross-axis** `Size::Fill(_)`
+    /// resolved to zero, because the parent row/column aligns its
+    /// children `Start` / `Center` / `End` instead of `Stretch`.
+    ///
+    /// Cross-axis `Fill` is not a share of free space — layout treats
+    /// `Hug` and `Fill` identically there and defers to the parent's
+    /// [`Align`](crate::tree::Align) (CSS flex `align-items`
+    /// semantics). Only `Stretch` grants the container's extent; the
+    /// three positional alignments resolve the child to its
+    /// *intrinsic* cross size, which is **zero** for a childless node
+    /// with no text. So a rule — `separator()`,
+    /// `vertical_separator()`, any hand-rolled `divider()` — lands in
+    /// the tree with a real 1px thickness, a real fill, and zero
+    /// length. Nothing paints, nothing overflows, no error: measured
+    /// on a `hairline()` in a `Start`-aligned column as rect
+    /// `(20,35,0,1)` where `Stretch` gives `(20,35,360,1)`.
+    ///
+    /// The check is geometric *and* mechanistic: the node's own rect
+    /// must have collapsed on the axis it authored as `Fill`, that
+    /// axis must be the cross axis of a non-`Stretch` parent, and the
+    /// node must actually carry ink (fill, stroke, per-side border,
+    /// text, icon, image, math, plot / scene / vector / surface
+    /// content, or a surface role). An empty `spacer()` — or any
+    /// other structural node — collapses to zero all the time and
+    /// paints nothing either way, so it is never flagged.
+    ///
+    /// Fixes:
+    ///
+    /// - `.align(Align::Stretch)` on the parent (what a column that
+    ///   holds full-width rules wants anyway), or
+    /// - an explicit cross-axis size on the rule itself:
+    ///   `vertical_separator().height(Size::Fixed(18.0))` is the stock
+    ///   inset toolbar rule, and is usually what a `Center`-aligned bar
+    ///   wanted in the first place.
+    CollapsedFillCrossAxis,
     /// A `plot()` spec declares both top-level `marks` and `lanes`.
     /// Lanes make the plot a lane plot and the top-level marks are
     /// silently ignored at draw time — put every mark inside a
@@ -790,7 +825,7 @@ fn check_tooltip_overlay_root(root: &El, r: &mut LintReport) {
         return;
     }
     fn first_tooltip(n: &El) -> Option<&El> {
-        if n.tooltip.is_some() {
+        if n.tooltip_text().is_some() {
             return Some(n);
         }
         n.children.iter().find_map(first_tooltip)
@@ -1178,7 +1213,7 @@ fn walk<'a>(
         // this leaf and `synthesize_tooltip` never reads its text.
         // Same "modifier requires unrelated state to take effect"
         // shape as the dead-`.ellipsis()` finding below.
-        if n.tooltip.is_some() && n.key.is_none() {
+        if n.tooltip_text().is_some() && n.key.is_none() {
             push_for(
                 r,
                 n,
@@ -1707,6 +1742,71 @@ fn walk<'a>(
                             "Size::Fill {axis_name} collapsed to {extent:.0}px ({content:.0}px of content space) — parent {parent_id} Hugs this axis, so Fill grants only the child's intrinsic size. Set Size::Fill(1.0) {axis_name} on the wrapper (Hug wrappers are only rescued when an ancestor stretches them; Axis::Overlay parents never do)",
                             content = (extent - pad).max(0.0),
                             parent_id = n.computed_id,
+                        ),
+                    },
+                );
+            }
+        }
+
+        // Collapsed cross-axis Fill under a non-Stretch parent. A
+        // different mechanism from `CollapsedFillChild` above (which
+        // is about a Hug parent starving a main-axis Fill): here the
+        // parent has all the space in the world, but cross-axis Fill
+        // defers to `align`, and the three positional alignments
+        // resolve it to the child's intrinsic — zero for a childless
+        // rule. Only paint-carrying nodes are flagged: structural
+        // nodes collapse to nothing all the time and lose nothing by
+        // it (see `layout::layout_axis`'s cross_size resolution).
+        if matches!(n.axis, Axis::Row | Axis::Column)
+            && !matches!(n.align, Align::Stretch)
+            // Parents that place children themselves never reach the
+            // align-vs-Fill branch: custom layouts and virtual lists
+            // own their child rects, and `Kind::Inlines` deliberately
+            // zero-rects its children (the paragraph paints them as
+            // one run).
+            && n.layout_override.is_none()
+            && n.virtual_items.is_none()
+            && !matches!(n.kind, Kind::Inlines)
+            && paints_own_ink(c)
+            && let Some(blame) = child_blame
+        {
+            let vertical = matches!(n.axis, Axis::Column);
+            // Cross axis = width in a column, height in a row.
+            let (cross, cross_extent, main_extent, parent_cross, axis_name, align_hint) =
+                if vertical {
+                    (c.width, c_rect.w, c_rect.h, computed.w, "width", "Column")
+                } else {
+                    (c.height, c_rect.h, c_rect.w, computed.h, "height", "Row")
+                };
+            // `main_extent > 0.5` keeps the finding to nodes that
+            // still have their thickness — a node collapsed on *both*
+            // axes is either genuinely empty or lives in a subtree
+            // layout zeroed wholesale (off-screen scroll pruning),
+            // neither of which this lint diagnoses. `parent_cross`
+            // guards the cascade: a parent with no cross extent of its
+            // own can't grant one, and its own finding is the fix.
+            if matches!(cross, Size::Fill(_))
+                && cross_extent <= 0.5
+                && main_extent > 0.5
+                && parent_cross > 0.5
+            {
+                push_for(
+                    r,
+                    c,
+                    Finding {
+                        kind: FindingKind::CollapsedFillCrossAxis,
+                        node_id: c.computed_id.clone().to_string(),
+                        source: blame,
+                        message: format!(
+                            "Size::Fill {axis_name} resolved to 0px, so this node paints nothing — \
+                             {axis_name} is the *cross* axis inside the {parent_axis} parent {parent_id}, and cross-axis Fill \
+                             follows that parent's Align (CSS align-items) instead of claiming space: Align::{align:?} \
+                             resolves it to the child's intrinsic {axis_name}, which is 0 here; only Align::Stretch grants \
+                             the container's extent. Set .align(Align::Stretch) on the parent, or give this node an explicit \
+                             {axis_name} (e.g. Size::Fixed(..))",
+                            parent_axis = align_hint,
+                            parent_id = n.computed_id,
+                            align = n.align,
                         ),
                     },
                 );
@@ -2408,6 +2508,37 @@ fn paints_pixels(n: &El) -> bool {
         || !matches!(n.surface_role, SurfaceRole::None)
 }
 
+/// True if `n` carries content of its own that the author expects to
+/// see — the gate for [`FindingKind::CollapsedFillCrossAxis`], where
+/// the whole finding is "you asked for ink and got a zero-extent rect".
+///
+/// Broader than [`paints_pixels`] (which asks "can this occlude a
+/// neighbor's focus ring?") on purpose: per-side borders, math, and the
+/// backend-rendered content kinds (plot, 3D scene, vector asset, app
+/// surface, shader override) all count as intent here even though the
+/// occlusion check doesn't model them. Two deliberate omissions:
+/// `shadow`, which is a decoration around a rect rather than content
+/// in it, and empty/whitespace-only `text`, which the layout is right
+/// to give no room.
+fn paints_own_ink(n: &El) -> bool {
+    let border_paints = n.border.as_deref().is_some_and(|b| {
+        b.widths.left > 0.0 || b.widths.right > 0.0 || b.widths.top > 0.0 || b.widths.bottom > 0.0
+    });
+    n.fill.is_some()
+        || (n.stroke.is_some() && n.stroke_width > 0.0)
+        || border_paints
+        || n.text.as_deref().is_some_and(|t| !t.trim().is_empty())
+        || n.icon.is_some()
+        || n.image.is_some()
+        || n.math.is_some()
+        || n.plot_source.is_some()
+        || n.scene_source.is_some()
+        || n.vector_source.is_some()
+        || n.surface.is_some()
+        || n.shader_override.is_some()
+        || !matches!(n.surface_role, SurfaceRole::None)
+}
+
 /// The region where `n` actually puts ink, given its layout `rect`.
 /// Fills, strokes, shadows, images, and surface roles paint the full
 /// rect; a text/icon-only node paints its content *inside* its
@@ -2829,6 +2960,115 @@ mod tests {
                     .findings
                     .iter()
                     .any(|finding| finding.kind == FindingKind::CollapsedFillChild),
+                "{shape}: {}",
+                report.text()
+            );
+        }
+    }
+
+    /// The measured silent failure: a rule whose length is cross-axis
+    /// `Fill` inside a column that aligns its children `Start`. Layout
+    /// resolves the width to the rule's intrinsic — zero — so a node
+    /// with a real fill and a real 1px thickness paints nothing, with
+    /// no overflow and no error anywhere.
+    #[test]
+    fn collapsed_cross_axis_fill_rule_is_flagged() {
+        for align in [Align::Start, Align::Center, Align::End] {
+            let mut root = crate::column([
+                crate::widgets::text::text("a"),
+                crate::separator(),
+                crate::widgets::text::text("b"),
+            ])
+            .align(align)
+            .width(Size::Fixed(360.0))
+            .height(Size::Fixed(90.0));
+            let mut state = UiState::new();
+            layout::layout(&mut root, &mut state, Rect::new(0.0, 0.0, 400.0, 120.0));
+
+            let rule = root.children[1].computed_rect;
+            assert!(
+                rule.w <= 0.5 && rule.h > 0.5,
+                "{align:?}: expected a zero-width 1px rule, got {rule:?}"
+            );
+            let report = lint(&root, &state);
+            assert!(
+                report
+                    .findings
+                    .iter()
+                    .any(|f| f.kind == FindingKind::CollapsedFillCrossAxis),
+                "{align:?}: {}",
+                report.text()
+            );
+        }
+
+        // The row-axis mirror: a full-height vertical rule inside a
+        // bar that centers its items (what every stock toolbar does).
+        let mut bar = crate::row([
+            crate::widgets::text::text("a"),
+            crate::vertical_separator(),
+            crate::widgets::text::text("b"),
+        ])
+        .align(Align::Center)
+        .width(Size::Fixed(360.0))
+        .height(Size::Fixed(32.0));
+        let mut state = UiState::new();
+        layout::layout(&mut bar, &mut state, Rect::new(0.0, 0.0, 400.0, 60.0));
+        let report = lint(&bar, &state);
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.kind == FindingKind::CollapsedFillCrossAxis),
+            "vertical rule in a centered bar: {}",
+            report.text()
+        );
+    }
+
+    /// The three shapes that must stay quiet: the same rule under the
+    /// default `Align::Stretch` (which is what makes it paint), an
+    /// empty `spacer()` — Fill on both axes, collapsed on the cross
+    /// axis, and carrying no ink to lose — and a rule that took an
+    /// explicit cross-axis size, the documented fix for centered bars.
+    #[test]
+    fn healthy_cross_axis_fill_shapes_are_not_flagged() {
+        let stretched = crate::column([
+            crate::widgets::text::text("a"),
+            crate::separator(),
+            crate::widgets::text::text("b"),
+        ])
+        .align(Align::Stretch)
+        .width(Size::Fixed(360.0))
+        .height(Size::Fixed(90.0));
+        let spacer_only = crate::column([
+            crate::widgets::text::text("a"),
+            crate::spacer(),
+            crate::widgets::text::text("b"),
+        ])
+        .align(Align::Start)
+        .width(Size::Fixed(360.0))
+        .height(Size::Fixed(90.0));
+        let sized_rule = crate::row([
+            crate::widgets::text::text("a"),
+            crate::vertical_separator().height(Size::Fixed(18.0)),
+            crate::widgets::text::text("b"),
+        ])
+        .align(Align::Center)
+        .width(Size::Fixed(360.0))
+        .height(Size::Fixed(32.0));
+
+        for (shape, mut root) in [
+            ("stretch", stretched),
+            ("spacer", spacer_only),
+            ("sized rule", sized_rule),
+        ] {
+            let mut state = UiState::new();
+            layout::layout(&mut root, &mut state, Rect::new(0.0, 0.0, 400.0, 120.0));
+            let report = lint(&root, &state);
+            assert!(
+                !report
+                    .findings
+                    .iter()
+                    .any(|f| f.kind == FindingKind::CollapsedFillCrossAxis),
                 "{shape}: {}",
                 report.text()
             );

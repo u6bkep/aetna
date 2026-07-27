@@ -38,14 +38,18 @@
 //! its caret, and its focusability — the group only strips the child's
 //! own trough so the paint reads as one field.
 //!
-//! # Focus ring (v1)
+//! # Focus ring
 //!
-//! The focus ring stays on the inner input: focusing the field draws
-//! the ring around the input's rect inside the group, not around the
-//! group border. A group-level ring (the oracle's
-//! `has-[:focus-visible]` treatment, where focusing any inner control
-//! lights the group border) is a recorded follow-up — v1 deliberately
-//! avoids growing a focus-delegation mechanism for one widget.
+//! Focusing the inner input rings the **group**: the group sets
+//! [`El::focus_within`] (CSS `:focus-within` per
+//! `docs/NAMING_ORACLE.md`; the shadcn oracle's `has-[:focus-visible]`
+//! treatment), so the stock ring wraps the whole trough while the
+//! focused control's own ring is suppressed — one ring around one
+//! field, never a ring cutting through the middle. Click focus counts
+//! too (the group opts in via `always_show_focus_ring`, matching the
+//! inner input's "now editable" affordance), the ring alpha follows
+//! the same eased envelope as a focused node's, and the caret /
+//! placeholder focus behaviors on the inner input are untouched.
 
 // Lock in full per-item documentation for this module (issue #73).
 #![warn(missing_docs)]
@@ -184,6 +188,13 @@ where
         .style_profile(StyleProfile::Surface)
         .metrics_role(MetricsRole::Input)
         .surface_role(SurfaceRole::Input)
+        // Group-level focus ring (module doc "Focus ring"): focusing
+        // any inner control rings the trough, on click focus too, with
+        // the ring band reserved outside the layout rect exactly as on
+        // text_input.
+        .focus_within()
+        .always_show_focus_ring()
+        .paint_overflow(Sides::all(tokens::RING_WIDTH))
         // Trough fill + stroke come from the Input surface role as
         // *defaults* (theme::apply_role_material) — same contract as
         // text_input: authored .fill()/.stroke() wins.
@@ -294,6 +305,19 @@ mod tests {
         // The group is chrome, not a control: focus stays inside.
         assert!(!g.focusable);
         assert!(!g.capture_keys);
+    }
+
+    #[test]
+    fn group_claims_descendant_focus_ring() {
+        // Module doc "Focus ring": the group carries the
+        // `:focus-within` flag so focusing any inner control rings the
+        // trough — on click focus too — with the ring band reserved
+        // outside the layout rect exactly as on text_input.
+        let sel = Selection::default();
+        let g = input_group([text_input("q", "", &sel)]);
+        assert!(g.focus_within);
+        assert!(g.always_show_focus_ring);
+        assert_eq!(g.paint_overflow, Sides::all(tokens::RING_WIDTH));
     }
 
     #[test]

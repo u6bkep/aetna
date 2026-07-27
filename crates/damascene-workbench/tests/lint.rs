@@ -80,15 +80,25 @@ fn shell() -> El {
         .height(Size::Fill(1.0))
         .width(Size::Fill(1.0))
         .align(Align::Stretch),
+        // Verbatim from the example, both clusters — unlike the panes
+        // above (deliberate reductions), the status bar is the region
+        // whose *density* is what the contrast lint chews on: every
+        // item is themed text directly on `STATUS_BAR_BG`. Keep it a
+        // copy, not a reduction.
         status_bar(
             [
                 text("main*")
                     .caption()
                     .key("scm")
                     .tooltip("Branch: main (modified)"),
+                text("0 problems").caption(),
                 chip("6"),
             ],
-            [text("Ln 1, Col 1").caption()],
+            [
+                text("Ln 1, Col 1").caption(),
+                text("UTF-8").caption(),
+                text("Rust").caption(),
+            ],
         ),
     ])
     .align(Align::Stretch)
@@ -129,7 +139,7 @@ fn shell_is_lint_clean() {
 #[test]
 fn shell_still_demonstrates_a_tooltip() {
     fn find_tooltip(n: &El) -> Option<&El> {
-        if n.tooltip.is_some() {
+        if n.tooltip_text().is_some() {
             return Some(n);
         }
         n.children.iter().find_map(find_tooltip)

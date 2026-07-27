@@ -49,7 +49,7 @@ use std::panic::Location;
 
 use crate::a11y::Role;
 use crate::cursor::Cursor;
-use crate::event::{LogicalKey, NamedKey, UiEvent, UiEventKind};
+use crate::event::{LogicalKey, NamedKey, UiEvent, UiEventKind, UiTarget};
 use crate::metrics::MetricsRole;
 use crate::selection::{Selection, SelectionPoint, SelectionRange};
 use crate::style::StyleProfile;
@@ -517,11 +517,11 @@ fn build_text_input(value: &str, view: Option<TextSelection>, opts: TextInputOpt
     // With a suffix the outer becomes the row `[viewport | unit]`.
     // Three things make this safe for the caret math:
     //
-    // - The horizontal *padding* is untouched, so `caret_byte_at`'s
-    //   `rect.x + SPACE_3` content-box origin still holds, and the
-    //   metrics pass may keep restamping the Input rung's `padding_x`
-    //   (it overwrites the whole `Sides` — an asymmetric reserve baked
-    //   into the padding would not survive it).
+    // - The horizontal *padding* is untouched, so the content-box
+    //   origin `text_origin_x` reads off the hit target still holds,
+    //   and the metrics pass may keep restamping the Input rung's
+    //   `padding_x` (it overwrites the whole `Sides` — an asymmetric
+    //   reserve baked into the padding would not survive it).
     // - `Align::Stretch` keeps the viewport child at the full control
     //   height, the way `Axis::Overlay` did; `Start`/`Center` would
     //   collapse a cross-axis `Fill` to its intrinsic.
@@ -871,15 +871,7 @@ fn fold_event_local(
             let (Some((px, _py)), Some(target)) = (event.pointer, event.target.as_ref()) else {
                 return false;
             };
-            // Account for the inner clip group's horizontal
-            // caret-into-view shift: with a long value scrolled
-            // past the right edge, the content the user clicks
-            // lives at `local_x + x_offset` in content space, not
-            // at raw `local_x`.
-            let viewport_w = text_viewport_width(target.rect.w, opts);
-            let x_offset = current_x_offset(value, selection.head, viewport_w, opts);
-            let local_x = px - target.rect.x - tokens::SPACE_3 + x_offset;
-            let pos = caret_from_x(value, local_x, opts);
+            let pos = caret_at_pointer(value, selection.head, px, target, opts);
             // Multi-click: 2 = select word at hit; ≥3 = select all.
             // Modifier-shift extend still wins over multi-click — it
             // reads as "extend whatever I had", and that's what shift-
@@ -912,10 +904,7 @@ fn fold_event_local(
             let (Some((px, _py)), Some(target)) = (event.pointer, event.target.as_ref()) else {
                 return false;
             };
-            let viewport_w = text_viewport_width(target.rect.w, opts);
-            let x_offset = current_x_offset(value, selection.head, viewport_w, opts);
-            let local_x = px - target.rect.x - tokens::SPACE_3 + x_offset;
-            let pos = caret_from_x(value, local_x, opts);
+            let pos = caret_at_pointer(value, selection.head, px, target, opts);
             let (lo, hi) = crate::selection::word_range_at(value, pos);
             selection.anchor = lo;
             selection.head = hi;
@@ -925,14 +914,10 @@ fn fold_event_local(
             let (Some((px, _py)), Some(target)) = (event.pointer, event.target.as_ref()) else {
                 return false;
             };
-            // Same scroll-offset adjustment as the PointerDown
-            // path above. The current `selection.head` reflects
-            // pre-event state — that's the head the rendered
-            // frame used to compute its `x_offset`.
-            let viewport_w = text_viewport_width(target.rect.w, opts);
-            let x_offset = current_x_offset(value, selection.head, viewport_w, opts);
-            let local_x = px - target.rect.x - tokens::SPACE_3 + x_offset;
-            let pos = caret_from_x(value, local_x, opts);
+            // The current `selection.head` reflects pre-event state —
+            // that's the head the rendered frame used to compute its
+            // `x_offset`.
+            let pos = caret_at_pointer(value, selection.head, px, target, opts);
             if !event.modifiers.shift {
                 match event.click_count {
                     2 => {
@@ -1177,21 +1162,67 @@ pub fn clipboard_request_for(event: &UiEvent, opts: &TextInputOpts<'_>) -> Optio
 pub fn caret_byte_at(value: &str, event: &UiEvent, opts: &TextInputOpts<'_>) -> Option<usize> {
     let (px, _py) = event.pointer?;
     let target = event.target.as_ref()?;
-    let local_x = px - target.rect.x - tokens::SPACE_3;
-    Some(caret_from_x(value, local_x, opts))
+    Some(caret_from_x(value, px - text_origin_x(target), opts))
 }
 
-/// Width of the scrolling text viewport inside a laid-out input of
-/// width `rect_w` — the content box minus whatever a trailing
+/// Window-space x of the text viewport's left edge — the origin every
+/// pointer→byte mapping in this module measures from.
+///
+/// It is **not** `target.rect.x + tokens::SPACE_3`. The outer input
+/// carries [`MetricsRole::Input`], so the metrics pass restamps its
+/// horizontal padding per resolved
+/// [`ComponentSize`][crate::metrics::ComponentSize] — 10px on
+/// `Xxs`/`Xs`/`Sm`, 12 on `Md`, 14 on `Lg` — overwriting the
+/// constructor's `default_padding(SPACE_3)` on every rung but `Md`.
+/// The token therefore agrees with the painted content box only at
+/// `Md`; everywhere else the mapping drifts by 2px — including the
+/// stock theme's default rung, `Sm`. That is most of a glyph at
+/// `TEXT_SM`, and it shows up as clicks near a glyph's middle landing
+/// one character off.
+///
+/// [`UiTarget::content_inset`] is the resolved number (padding plus any
+/// per-side border), snapshotted from the laid-out node by the same
+/// hit-test that produced `rect`, so the two are always from one frame.
+fn text_origin_x(target: &UiTarget) -> f32 {
+    target.rect.x + target.content_inset.left
+}
+
+/// Width of the scrolling text viewport inside a laid-out input — the
+/// node's content box minus whatever a trailing
 /// [`TextInputOpts::suffix`] reserves.
 ///
 /// The build path gets this width for free (the viewport child is the
 /// `Fill` cell of the outer row, so layout hands it exactly this
-/// extent); the event path has only `target.rect`, so it recomputes
-/// the same number here. Both feed [`current_x_offset`], and they must
-/// agree or clicks land on the wrong byte in a scrolled field.
-fn text_viewport_width(rect_w: f32, opts: &TextInputOpts<'_>) -> f32 {
-    (rect_w - 2.0 * tokens::SPACE_3 - suffix_reserve(opts)).max(0.0)
+/// extent); the event path has only the [`UiTarget`], so it recomputes
+/// the same number from the rect and the resolved inset (see
+/// [`text_origin_x`] for why the inset, not the token). Both feed
+/// [`current_x_offset`], and they must agree or clicks land on the
+/// wrong byte in a scrolled field.
+fn text_viewport_width(target: &UiTarget, opts: &TextInputOpts<'_>) -> f32 {
+    let inset = target.content_inset;
+    (target.rect.w - inset.left - inset.right - suffix_reserve(opts)).max(0.0)
+}
+
+/// Byte offset in `value` that a pointer at window-space `px` selects.
+///
+/// Single funnel for every pointer arm — press, long-press, drag, and
+/// the public [`caret_byte_at`]'s origin — so the two quantities the
+/// mapping depends on are derived once: the viewport origin
+/// ([`text_origin_x`]) and the caret-into-view scroll the painted frame
+/// applied ([`current_x_offset`], fed by [`text_viewport_width`]).
+/// `head` is the pre-event caret, i.e. the head that frame scrolled to.
+fn caret_at_pointer(
+    value: &str,
+    head: usize,
+    px: f32,
+    target: &UiTarget,
+    opts: &TextInputOpts<'_>,
+) -> usize {
+    // With a long value scrolled past the right edge, the content the
+    // user clicks lives at `local_x + x_offset` in content space, not
+    // at raw `local_x`.
+    let x_offset = current_x_offset(value, head, text_viewport_width(target, opts), opts);
+    caret_from_x(value, px - text_origin_x(target) + x_offset, opts)
 }
 
 /// Horizontal scroll offset applied to text_input's content for
@@ -1332,6 +1363,7 @@ mod tests {
         KeyModifiers, KeyPress, PhysicalKey, Pointer, PointerButton, PointerKind, UiTarget,
     };
     use crate::layout::layout;
+    use crate::metrics::ComponentSize;
     use crate::palette::Palette;
     use crate::runtime::RunnerCore;
     use crate::state::UiState;
@@ -1520,13 +1552,44 @@ mod tests {
         }
     }
 
+    /// The content inset a stock `text_input` really carries once the
+    /// theme's metrics pass has run. Derived from the pipeline instead
+    /// of hard-coded, because that is the whole point: the constructor
+    /// asks for `SPACE_3` (12) and the Input rung stamps 10 at the
+    /// stock `ComponentSize::Sm`. Fixtures anchoring clicks on the
+    /// token instead of this were mapping pointers 2px off the origin
+    /// the runtime uses.
+    fn ti_inset() -> Sides {
+        ti_target().content_inset
+    }
+
+    /// The [`UiTarget`] `hit_test` would produce for an already
+    /// laid-out node: rect and content inset read off the same node,
+    /// so event-time math sees exactly the frame's geometry.
+    fn target_for(el: &El) -> UiTarget {
+        UiTarget {
+            key: el.key.clone().unwrap_or_default(),
+            node_id: el.computed_id.clone(),
+            rect: el.computed_rect,
+            tooltip: None,
+            scroll_offset_y: 0.0,
+            content_inset: el.content_inset(),
+        }
+    }
+
+    /// A hit target for a stock `text_input`, carrying the content
+    /// inset the metrics pass actually stamps at the theme's default
+    /// rung — the same snapshot `hit_test` puts on a real `UiTarget`.
     fn ti_target() -> UiTarget {
+        let mut el = super::text_input("ti", "", &Selection::default());
+        crate::Theme::default().apply_metrics(&mut el);
         UiTarget {
             key: "ti".into(),
             node_id: "root.text_input[ti]".into(),
             rect: Rect::new(20.0, 20.0, 400.0, 36.0),
             tooltip: None,
             scroll_offset_y: 0.0,
+            content_inset: el.content_inset(),
         }
     }
 
@@ -1542,6 +1605,7 @@ mod tests {
             rect: Rect::new(0.0, 0.0, 200.0, 20.0),
             tooltip: None,
             scroll_offset_y: 0.0,
+            content_inset: Sides::zero(),
         };
         let mut value = String::from("hello");
         let mut sel = TextSelection::range(1, 3);
@@ -2160,7 +2224,7 @@ mod tests {
         // Click somewhere inside "world" with click_count = 2.
         let target = ti_target();
         let click_x = target.rect.x
-            + tokens::SPACE_3
+            + ti_inset().left
             + crate::text::metrics::line_width(
                 "hello w",
                 tokens::TEXT_SM.size,
@@ -2214,7 +2278,7 @@ mod tests {
         let mut sel = TextSelection::caret(0);
         let target = ti_target();
         let click_x = target.rect.x
-            + tokens::SPACE_3
+            + ti_inset().left
             + crate::text::metrics::line_width(
                 "hello w",
                 tokens::TEXT_SM.size,
@@ -2286,7 +2350,7 @@ mod tests {
         let mut sel = TextSelection::caret(0);
         let target = ti_target();
         let click_x = target.rect.x
-            + tokens::SPACE_3
+            + ti_inset().left
             + crate::text::metrics::line_width(
                 "hello w",
                 tokens::TEXT_SM.size,
@@ -2338,7 +2402,7 @@ mod tests {
         let mut sel = TextSelection::caret(value.len());
         let target = ti_target();
         let pointer = (
-            target.rect.x + tokens::SPACE_3,
+            target.rect.x + ti_inset().left,
             target.rect.y + target.rect.h * 0.5,
         );
         let event = ev_middle_click(target, pointer, Some("hello "));
@@ -2611,7 +2675,7 @@ mod tests {
         let target = ti_target();
         // Click at a position that should land between the two bullets.
         let bullet_w = metrics::line_width("•", tokens::TEXT_SM.size, FontWeight::Regular, false);
-        let click_x = target.rect.x + tokens::SPACE_3 + bullet_w * 1.4;
+        let click_x = target.rect.x + ti_inset().left + bullet_w * 1.4;
         let down = ev_pointer_down(
             target,
             (click_x, ti_target().rect.y + 18.0),
@@ -2827,9 +2891,12 @@ mod tests {
             suffixed_viewport.w,
             reserve
         );
-        // And the number the event path computes matches the laid-out one.
+        // And the number the event path computes matches the laid-out
+        // one. The target is built off the very node that was laid out,
+        // exactly as `hit_test` builds it — rect and content inset from
+        // one frame.
         assert!(
-            (text_viewport_width(200.0, &opts) - suffixed_viewport.w).abs() < 0.01,
+            (text_viewport_width(&target_for(&suffixed), &opts) - suffixed_viewport.w).abs() < 0.01,
             "event-time viewport width must equal the laid-out viewport"
         );
     }
@@ -2841,7 +2908,7 @@ mod tests {
         // with and without a unit label.
         let value = String::from("hello");
         let target = ti_target();
-        let click_x = target.rect.x + tokens::SPACE_3 + 12.0;
+        let click_x = target.rect.x + ti_inset().left + 12.0;
         let click = || {
             ev_pointer_down(
                 ti_target(),
@@ -2906,7 +2973,12 @@ mod tests {
         // What the frame actually painted: how far left the content sits.
         let painted_offset = viewport.x - leaf.computed_rect.x;
         // What the event path will assume.
-        let event_offset = current_x_offset(&value, head, text_viewport_width(160.0, &opts), &opts);
+        let event_offset = current_x_offset(
+            &value,
+            head,
+            text_viewport_width(&target_for(&root), &opts),
+            &opts,
+        );
         assert!(
             (painted_offset - event_offset).abs() < 0.01,
             "painted scroll {painted_offset} vs event-time scroll {event_offset}"
@@ -3002,6 +3074,78 @@ mod tests {
             &opts
         ));
         assert_eq!(value, "abcde");
+    }
+
+    #[test]
+    fn click_to_caret_anchors_on_the_stamped_padding_at_off_default_rungs() {
+        // Regression: the pointer→byte anchor was `rect.x + SPACE_3`,
+        // but the outer input carries `MetricsRole::Input`, so the
+        // metrics pass restamps its horizontal padding per resolved
+        // `ComponentSize` — 10px on Xxs/Xs/Sm, 12 on Md, 14 on Lg. The
+        // token therefore agreed with the painted content box only at
+        // Md; every other rung (including the stock default, Sm) was
+        // 2px out, and 2px at TEXT_SM is most of a glyph.
+        //
+        // Runs the real order — apply_metrics → layout → event — and
+        // brackets a glyph's midpoint from both sides, which is exactly
+        // where a 2px anchor error changes the answer.
+        let value = String::from("mmmm");
+        let sel = as_selection_in("ti", TextSelection::caret(0));
+        let geometry = single_line_geometry(&value, false);
+        let (lo, hi) = (geometry.prefix_width(2), geometry.prefix_width(3));
+        assert!(
+            hi - lo > 4.0,
+            "fixture glyph must be wider than twice the drift, got {}",
+            hi - lo
+        );
+
+        for size in [ComponentSize::Xs, ComponentSize::Lg] {
+            let mut tree = crate::column([super::text_input_with(
+                "ti",
+                &value,
+                &sel,
+                TextInputOpts::default(),
+            )
+            .size(size)])
+            .padding(20.0);
+            crate::Theme::default().apply_metrics(&mut tree);
+            let mut state = UiState::new();
+            layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 200.0));
+
+            let input = &tree.children[0];
+            let stamped = input.content_inset().left;
+            assert_ne!(
+                stamped,
+                tokens::SPACE_3,
+                "{size:?} must be an off-token rung for this test to bite"
+            );
+
+            // Ground truth: where the shaped run actually starts.
+            let leaf = input.children[0]
+                .children
+                .iter()
+                .find(|c| matches!(c.kind, Kind::Text))
+                .expect("value leaf");
+            assert!(
+                (leaf.computed_rect.x - (input.computed_rect.x + stamped)).abs() < 0.01,
+                "the content box is the rect plus the *stamped* inset"
+            );
+
+            let target = target_for(input);
+            let mid = leaf.computed_rect.x + (lo + hi) * 0.5;
+            let cy = input.computed_rect.y + input.computed_rect.h * 0.5;
+            for (dx, want) in [(-1.0_f32, 2_usize), (1.0, 3)] {
+                let mut v = value.clone();
+                let mut s = TextSelection::caret(0);
+                let at = (mid + dx, cy);
+                let down = ev_pointer_down(target.clone(), at, KeyModifiers::default());
+                assert!(apply_event(&mut v, &mut s, &down));
+                assert_eq!(
+                    s.head, want,
+                    "{size:?}: click {dx:+}px from the glyph midpoint should land on byte {want}"
+                );
+            }
+        }
     }
 
     #[test]

@@ -365,8 +365,22 @@ pub const DEFAULT_WIDTH: f32 = 144.0;
 /// idiom dropdown-menu rows and calendar days use for densely packed
 /// focusables that should stay visually flush. Each chevron is exactly
 /// `CONTROL_HEIGHT / 2` so the two split the column with no gap.
+///
+/// The seam edges also drop their `hit_overflow`. `icon_button` inflates
+/// its hit rect by [`tokens::HIT_OVERFLOW`] on all four sides, and with
+/// the two chevrons flush that band overlapped by the full column width
+/// × `2 * HIT_OVERFLOW` — an invisible strip on the seam where a click
+/// aimed at `⌃` steps the value *down*, which
+/// [`FindingKind::HitOverflowCollision`][crate::bundle::lint::FindingKind::HitOverflowCollision]
+/// flagged on a bare `numeric_input(...).stacked()`. Same trade
+/// [`join_row`][crate::widgets::button_group] makes for joined groups:
+/// flush neighbours have no whitespace for an expanded target to live
+/// in. Only the shared edge is zeroed — the column's outer edges keep
+/// their band, since nothing is flush against them (the field sits a
+/// `RING_WIDTH` gap away).
 fn stacked_chevron_column(key: &str, caller: &'static Location<'static>) -> El {
     let half_h = (tokens::CONTROL_HEIGHT * 0.5).floor();
+    let seam = tokens::HIT_OVERFLOW;
     let inc = icon_button("chevron-up")
         .at_loc(caller)
         .key(format!("{key}:inc"))
@@ -374,6 +388,10 @@ fn stacked_chevron_column(key: &str, caller: &'static Location<'static>) -> El {
         .ghost()
         .icon_size(tokens::ICON_XS)
         .focus_ring_inside()
+        .hit_overflow(Sides {
+            bottom: 0.0,
+            ..Sides::all(seam)
+        })
         .width(Size::Fixed(STACKED_CHEVRON_WIDTH))
         .height(Size::Fixed(half_h));
     let dec = icon_button("chevron-down")
@@ -383,6 +401,10 @@ fn stacked_chevron_column(key: &str, caller: &'static Location<'static>) -> El {
         .ghost()
         .icon_size(tokens::ICON_XS)
         .focus_ring_inside()
+        .hit_overflow(Sides {
+            top: 0.0,
+            ..Sides::all(seam)
+        })
         .width(Size::Fixed(STACKED_CHEVRON_WIDTH))
         .height(Size::Fixed(half_h));
     column([inc, dec])
@@ -611,6 +633,7 @@ mod tests {
                 rect: Rect::new(0.0, 0.0, 100.0, 32.0),
                 tooltip: None,
                 scroll_offset_y: 0.0,
+                content_inset: Sides::zero(),
             }),
             pointer: None,
             key_press: None,
@@ -895,6 +918,7 @@ mod tests {
                 rect: Rect::new(0.0, 0.0, 100.0, 32.0),
                 tooltip: None,
                 scroll_offset_y: 0.0,
+                content_inset: Sides::zero(),
             }),
             pointer: None,
             key_press: Some(KeyPress {
@@ -1089,6 +1113,62 @@ mod tests {
     }
 
     #[test]
+    fn stacked_chevrons_drop_hit_overflow_on_the_shared_seam() {
+        let value = String::from("0");
+        let sel = Selection::default();
+        let el = numeric_input("n", &value, &sel, NumericInputOpts::default().stacked());
+        let chevrons = &el.children[1].children;
+        let (inc, dec) = (&chevrons[0], &chevrons[1]);
+        // The seam: `⌃`'s bottom band would sit inside `⌄`'s rect and
+        // vice versa — invisible, and resolved by paint order, so a
+        // click on the bottom edge of `⌃` would step the value *down*.
+        assert_eq!(inc.hit_overflow.bottom, 0.0, "up chevron's seam edge");
+        assert_eq!(dec.hit_overflow.top, 0.0, "down chevron's seam edge");
+        // The outer edges are unaffected — nothing is flush there, so
+        // the affordance keeps its band.
+        assert_eq!(inc.hit_overflow.top, tokens::HIT_OVERFLOW);
+        assert_eq!(inc.hit_overflow.left, tokens::HIT_OVERFLOW);
+        assert_eq!(dec.hit_overflow.bottom, tokens::HIT_OVERFLOW);
+        assert_eq!(dec.hit_overflow.right, tokens::HIT_OVERFLOW);
+    }
+
+    #[test]
+    fn stacked_variant_is_lint_clean() {
+        use crate::bundle::lint::FindingKind;
+        // Regression: a bare `numeric_input(...).stacked()` used to trip
+        // `HitOverflowCollision` — `icon_button`'s all-sides
+        // `HIT_OVERFLOW` band on two flush chevrons overlapped by the
+        // column's full width x `2 * HIT_OVERFLOW`.
+        let value = String::from("42");
+        let sel = Selection::default();
+        let mut root = crate::tree::column([numeric_input(
+            "n",
+            &value,
+            &sel,
+            NumericInputOpts::default().stacked(),
+        )])
+        .padding(Sides::all(tokens::SPACE_4));
+        let mut state = UiState::new();
+        layout(&mut root, &mut state, Rect::new(0.0, 0.0, 400.0, 120.0));
+        let report = crate::bundle::lint::lint(&root, &state, &crate::theme::Theme::default());
+        let relevant: Vec<_> = report
+            .findings
+            .iter()
+            .filter(|f| {
+                matches!(
+                    f.kind,
+                    FindingKind::HitOverflowCollision | FindingKind::FocusRingObscured
+                )
+            })
+            .collect();
+        assert!(
+            relevant.is_empty(),
+            "a bare stacked numeric_input must not trip flush-neighbour lints:\n{}",
+            report.text(),
+        );
+    }
+
+    #[test]
     fn stacked_variant_keeps_apply_event_contract() {
         // The stacked layout reuses the same routed key vocabulary, so
         // apply_event is layout-agnostic.
@@ -1202,6 +1282,21 @@ mod tests {
         );
     }
 
+    /// Content inset of the inner `{key}:field` after the metrics pass
+    /// has stamped the Input rung — the origin `text_input`'s pointer
+    /// math anchors on, and 2px off `tokens::SPACE_3` at the stock
+    /// `ComponentSize::Sm`.
+    fn field_inset() -> Sides {
+        let sel = Selection::default();
+        let mut el = numeric_input("n", "0", &sel, NumericInputOpts::default());
+        crate::Theme::default().apply_metrics(&mut el);
+        el.children
+            .iter()
+            .find(|c| c.key.as_deref() == Some("n:field"))
+            .expect("field child")
+            .content_inset()
+    }
+
     #[test]
     fn suffix_does_not_shift_the_caret_math() {
         // `apply_event` rebuilds the field opts on the event path; the
@@ -1213,6 +1308,9 @@ mod tests {
             rect: Rect::new(20.0, 0.0, 160.0, 32.0),
             tooltip: None,
             scroll_offset_y: 0.0,
+            // The stamped inset of the inner field at the stock rung,
+            // i.e. what hit_test would snapshot — not `SPACE_3`.
+            content_inset: field_inset(),
         };
         let click_at = |x: f32| UiEvent {
             path: None,
@@ -1229,7 +1327,7 @@ mod tests {
             kind: UiEventKind::PointerDown,
         };
 
-        let x = target.rect.x + crate::tokens::SPACE_3 + 14.0;
+        let x = target.rect.x + field_inset().left + 14.0;
         let mut plain_value = String::from("12345");
         let mut plain_sel = Selection::default();
         apply_event(

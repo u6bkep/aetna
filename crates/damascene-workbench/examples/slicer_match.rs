@@ -292,10 +292,31 @@ impl Slicer {
         if mono { t.mono() } else { t }
     }
 
-    /// A bordered segmented control. `toggle_group` is the stock
-    /// one-of-N row, but it is a gapped row of loose buttons — the
-    /// segmented shape (one trough, hairline-divided, per-item height)
-    /// has to be assembled from `toggle_item`s.
+    /// A bordered segmented control.
+    ///
+    /// Stock `toggle_group` now *is* a joined trough — the 2026-07
+    /// anatomy arc gave it `button_group::join_row`'s corner collapse
+    /// and seam rule — so the shape is no longer the reason this helper
+    /// exists. Two things are:
+    ///
+    /// - **The seam color.** `join_row` writes `tokens::BORDER`, the
+    ///   region-rule slot (`C_BORDER`, 42/47/56 here). This target's
+    ///   segment seams are `input.border` (`C_INPUT_BORDER`, 58/65/77),
+    ///   a step brighter, and there is no hook to re-point them.
+    ///   Measured on the `button_group` route: seams shift one pixel
+    ///   and darken to `C_BORDER`, and `join_row` suppresses the seam
+    ///   entirely next to the selected segment (whose `.current()`
+    ///   stroke it treats as already drawing that edge) — 2445 changed
+    ///   pixels across the frame.
+    /// - **The items.** Two of the three groups here are not
+    ///   `toggle_item`s at all (the overlay pair is `button_with_icon`,
+    ///   see below), and the public `toggle_group` builds its own items
+    ///   from `(value, label)` pairs. `join_row` itself is
+    ///   `pub(crate)`; `button_group` is the only public joiner that
+    ///   takes pre-built children, and it carries the same fixed seam.
+    ///
+    /// Everything else this adds is match-exercise calibration: the
+    /// trough fill, the per-item height, the `clip()`.
     fn segmented(items: Vec<El>, height: f32) -> El {
         let items: Vec<El> = items
             .into_iter()

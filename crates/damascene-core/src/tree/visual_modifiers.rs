@@ -277,7 +277,7 @@ impl El {
     pub fn tooltip(mut self, text: impl Into<String>) -> Self {
         let text = text.into();
         #[cfg(debug_assertions)]
-        if let Some(prev) = &self.tooltip
+        if let Some(prev) = self.tooltip_text()
             && *prev != text
         {
             let loc = std::panic::Location::caller();
@@ -292,7 +292,7 @@ impl El {
                 )
             });
         }
-        self.tooltip = Some(text);
+        self.tooltip = Some(text.into_boxed_str());
         self
     }
 

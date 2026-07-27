@@ -37,10 +37,6 @@ const INSPECTOR_WIDTH: f32 = 320.0;
 const LABEL_GUTTER: f32 = 78.0;
 /// Side of the square footprint preview.
 const PREVIEW_SIDE: f32 = 200.0;
-/// Vertical padding inside a table row. The stock cell's `SPACE_2` is
-/// tuned for shadcn's airier tables; a parts index wants the row pitch
-/// down near the type's line box.
-const ROW_PAD_Y: f32 = 5.0;
 
 // Widget keys. Static mock, so these only have to be unique — nothing
 // reads them back.
@@ -701,24 +697,21 @@ fn part_row(index: usize, part: &Part) -> El {
     }
 }
 
-/// A body cell at a column weight, tightened from the stock vertical
-/// padding to the workbench's row pitch.
+/// A body cell at a column weight.
+///
+/// No padding override: cell padding rides the `ComponentSize` ladder,
+/// and this theme's `Xs` rung stamps `xy(8, 4.71)` — what this helper
+/// used to hardcode as `xy(SPACE_2, ROW_PAD_Y)`.
 fn cell(content: impl Into<El>, weight: f32) -> El {
-    table_cell(content)
-        .padding(Sides::xy(tokens::SPACE_2, ROW_PAD_Y))
-        .width(Size::Fill(weight))
+    table_cell(content).width(Size::Fill(weight))
 }
 
 fn head(label: &str, weight: f32) -> El {
-    table_head(label)
-        .padding(Sides::xy(tokens::SPACE_2, ROW_PAD_Y))
-        .width(Size::Fill(weight))
+    table_head(label).width(Size::Fill(weight))
 }
 
 fn head_el(content: impl Into<El>, weight: f32) -> El {
-    table_head_el(content)
-        .padding(Sides::xy(tokens::SPACE_2, ROW_PAD_Y))
-        .width(Size::Fill(weight))
+    table_head_el(content).width(Size::Fill(weight))
 }
 
 /// One inspector row: fixed label gutter, control takes the rest.
