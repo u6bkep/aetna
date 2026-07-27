@@ -278,8 +278,8 @@ pub use widgets::skeleton::{skeleton, skeleton_circle};
 pub use widgets::slider::{SliderAction, slider};
 pub use widgets::switch::switch;
 pub use widgets::table::{
-    table, table_body, table_cell, table_head, table_head_el, table_header, table_row,
-    table_row_keyed,
+    TableColumn, table, table_body, table_cell, table_head, table_head_el, table_header,
+    table_header_cells, table_row, table_row_cells, table_row_keyed,
 };
 pub use widgets::tabs::{
     TabsAction, tab_option_key, tab_trigger, tab_trigger_content, tabs_list,
@@ -294,3 +294,6 @@ pub use widgets::toggle::{
     ToggleAction, toggle, toggle_group, toggle_group_multi, toggle_item, toggle_option_key,
 };
 pub use widgets::toolbar::{toolbar, toolbar_description, toolbar_group, toolbar_title};
+pub use widgets::tree::{
+    TREE_INDENT, TREE_ITEM_HEIGHT, TreeItemOpts, tree, tree_item, tree_item_with,
+};

@@ -174,8 +174,8 @@ pub use crate::widgets::slider::{self, SliderAction, slider, slider_with_color};
 pub use crate::widgets::spinner::{self, spinner, spinner_with_color, spinner_with_track};
 pub use crate::widgets::switch::{self, switch};
 pub use crate::widgets::table::{
-    self, table, table_body, table_cell, table_head, table_head_el, table_header, table_row,
-    table_row_keyed,
+    self, TableColumn, table, table_body, table_cell, table_head, table_head_el, table_header,
+    table_header_cells, table_row, table_row_cells, table_row_keyed,
 };
 pub use crate::widgets::tabs::{
     self, TabsAction, tab_option_key, tab_trigger, tab_trigger_content, tabs_list,
@@ -191,6 +191,9 @@ pub use crate::widgets::toggle::{
 };
 pub use crate::widgets::toolbar::{
     self, toolbar, toolbar_description, toolbar_group, toolbar_title,
+};
+pub use crate::widgets::tree::{
+    TREE_INDENT, TREE_ITEM_HEIGHT, TreeItemOpts, tree, tree_item, tree_item_with,
 };
 
 pub use crate::selection::{Selection, SelectionPoint, SelectionRange, selected_text};
