@@ -221,3 +221,46 @@ Non-goals for the first cut, deferred deliberately:
   `workbench::status_bar::BG`. Cosmetic, decide at implementation.
 - Whether the crate ships light themes at all, or dark-only until a
   consumer asks.
+
+## Retarget ratified 2026-07-27: values move to zinc/slate-blue; Dark Modern demotes to a variant
+
+The two validation rounds (`references/workbench-validation/`, blind
+pairs then real-shadcn round 2) plus the naming-oracle work
+(`docs/NAMING_ORACLE.md`) settled a question this document originally
+conflated: the crate's payload was always four things — VS Code **key
+vocabulary**, Dark Modern **values**, the **density profile**, and the
+**chrome recipes** — and only the values were ever VS-Code-specific.
+The toy diagnosis's four signals never included color.
+
+**Ratified:** the workbench default paints from the stock
+`radix_slate_blue_dark` palette — the blue variant of the neutral dark
+family — with the VS Code *key names* retained as the chrome-token
+naming layer, remapped onto the new palette's slots (`editor.background
+→ background #111113`, `sideBar.background → card #18191B`,
+`button.background → primary #0090FF`, …). Dark Modern survives intact
+as `theme::dark_modern()`; its 82 calibrated tokens and the
+`register_workbench_tokens` retheme mechanism are paid for and proven
+(slicer_match reskinned the whole crate in ~30 `with_token` lines).
+
+Evidence, chose-because:
+- Round 2: four home-turf agents told only "dense professional tool,
+  VS Code workbench genre" all produced zinc + dense + flat + sparse
+  accent — the trained prior's answer for this genre is not Dark
+  Modern. Their measured chrome step (#18181B–#212124 over #09090B)
+  matches radix_slate_blue_dark's card/background step (#18191B over
+  #111113) to within a few 8-bit values.
+- The surface model *inverts*: VS Code sinks chrome below the editor
+  (#181818 under #1F1F1F); the shadcn genre raises chrome above content
+  (card over background). The remap adopts the raised model.
+- eutectic's binding ui-oracle is already zinc-family on workbench keys.
+- The user's monitors render Dark Modern's low-contrast ramp poorly;
+  the preference is the zinc family, specifically the blue variants.
+
+REJECTED — Dark-Modern-as-default (the original §"Why VS Code
+specifically" position): the corpus-priors argument held for the *key
+vocabulary* but not the *values* — round-2 agents never reached for VS
+Code names when shadcn slots were available, and value-level fidelity
+to VS Code was never load-bearing for the four inversions. The key
+names stay because they remain the only name source for chrome
+(per the oracle registry); the values go because nothing but momentum
+held them.
