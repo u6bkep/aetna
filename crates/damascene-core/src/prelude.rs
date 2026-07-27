@@ -120,6 +120,7 @@ pub use crate::widgets::item::{
     self, item, item_actions, item_content, item_description, item_footer, item_group, item_header,
     item_media, item_media_icon, item_separator, item_title,
 };
+pub use crate::widgets::kbd::{KBD_HEIGHT, kbd, kbd_group};
 pub use crate::widgets::list::{bullet_list, numbered_list, numbered_list_from, task_list};
 pub use crate::widgets::menubar::{
     self, MenubarAction, menubar, menubar_content, menubar_group, menubar_icon, menubar_item,

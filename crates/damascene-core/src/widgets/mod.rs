@@ -42,7 +42,7 @@
 //!
 //! **Feedback & status**
 //! - [`alert`] — callouts; `alert([alert_title, alert_description]).warning() / .info() / .destructive()`
-//! - [`badge`] — status pill; `badge("Online").success() / .warning() / .destructive() / .info() / .muted()`
+//! - [`badge`] — status pill; `badge("Online").success() / .warning() / .destructive() / .info() / .muted() / .outline()`
 //! - [`progress`] — non-interactive value bar; `progress(value)`, also `progress_indeterminate()`
 //! - [`spinner`] — loading indicator
 //! - [`skeleton`] — loading placeholder; `skeleton().width(...)` / `skeleton_circle(size)`
@@ -50,6 +50,7 @@
 //! **Identity & content**
 //! - [`avatar`] — `avatar_fallback("Name")` / `avatar_image(img)`; default size [`avatar::DEFAULT_AVATAR_SIZE`]
 //! - [`text`] — text leaves with role modifiers (`h1`, `h2`, `h3`, `paragraph`, `mono`, `.label()`, `.caption()`, `.muted()`, `.code()`)
+//! - [`kbd`] — keyboard-shortcut keycap; `kbd("F9")`, `kbd_group([kbd("⌘"), kbd("K")])` (menu rows want [`command`]'s un-boxed `command_shortcut` instead)
 //! - [`blockquote`] — quoted block
 //! - [`code_block`] — fenced code with optional chrome
 //! - [`button`] — `button(label)` / `button_with_icon(...)` / `icon_button(...)`; `.primary()` / `.secondary()` / `.ghost()` / `.destructive()`
@@ -89,6 +90,7 @@ pub mod editor_tabs;
 pub mod form;
 pub mod input_otp;
 pub mod item;
+pub mod kbd;
 pub mod list;
 pub mod menubar;
 pub mod number_scrubber;
