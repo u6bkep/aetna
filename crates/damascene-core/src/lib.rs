@@ -219,6 +219,7 @@ pub use widgets::editor_tabs::{
     ActiveTabStyle, CloseVisibility, EditorTabsAction, EditorTabsConfig, editor_tab,
     editor_tab_add_key, editor_tab_close_key, editor_tab_select_key, editor_tabs, editor_tabs_with,
 };
+pub use widgets::field::{FieldOpts, field, field_group, field_separator, field_set, field_with};
 pub use widgets::form::{
     field_row, form, form_control, form_description, form_item, form_label, form_message,
     form_section,

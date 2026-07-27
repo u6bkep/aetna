@@ -5,6 +5,11 @@
 //! `field_row` remains the compact horizontal variant for settings
 //! rows, preference panes, and audio-config modals.
 //!
+//! For settings rows and inspector panes — especially rows that carry
+//! a description line — prefer the [`crate::widgets::field`] anatomy
+//! (`field` / `field_with` / `field_group` / `field_set`); it is the
+//! shadcn `Field` shape those panes are built from.
+//!
 //! ```ignore
 //! use damascene_core::prelude::*;
 //!
@@ -163,6 +168,10 @@ pub fn form_message(message: impl Into<String>) -> El {
 ///
 /// For multi-control rows (e.g. a value readout next to a slider),
 /// wrap them in a `row([...])` and pass that as `control`.
+///
+/// For a settings row that also carries a description line, prefer
+/// [`crate::widgets::field::field_with`] with
+/// `FieldOpts::default().description(...).horizontal()`.
 #[track_caller]
 pub fn field_row(label: impl Into<String>, control: impl Into<El>) -> El {
     crate::row([text(label).label(), crate::spacer(), control.into()])

@@ -30,6 +30,7 @@
 //! **Inputs & forms**
 //! - [`calendar`] — controlled date grid; `calendar_month(key, "May 2026", days)` + `calendar::apply_event`
 //! - [`text_input`] / [`text_area`] — controlled text editing; app owns `(value, Selection)` and calls `apply_event`; fixed-height text areas also drain caret scroll requests after accepted events
+//! - [`input_group`] — one field trough around an input plus leading/trailing furniture; `input_group([input_group_addon(icon("search")), text_input(...), input_group_text("mm")])`
 //! - [`numeric_input`] — number entry with stepper / formatting; `.stacked()` opt switches to the `<input type="number">`-style chevron column
 //! - [`number_scrubber`] — drag-to-scrub numeric cell (Figma/Blender shape); `number_scrubber(key, value)` + `ScrubDrag` / `number_scrubber::apply_event`
 //! - [`input_otp`] — segmented one-time-password input
@@ -38,6 +39,7 @@
 //! - [`radio`] — `radio_group(...)` + `radio_item(...)` + `RadioAction`
 //! - [`toggle`] — single or grouped toggle buttons (think bold/italic toolbar)
 //! - [`slider`] — controlled value bar; `slider(key, value)` + `slider::apply_event` (folds pointer + key)
+//! - [`field`] — labelled control for settings rows and inspector panes; `field("Label", control)`, `field_with(label, control, FieldOpts::default().description("...").horizontal())`, stacked in `field_group([...])` / `field_set("Legend", [...])` with `field_separator()`
 //! - [`form`] — `form([...])` + `form_item([form_label, form_control, form_description, form_message])` + `field_row(label, control)` + `form_section(...)`
 //!
 //! **Feedback & status**
@@ -87,7 +89,9 @@ pub mod command;
 pub mod dialog;
 pub mod dropdown_menu;
 pub mod editor_tabs;
+pub mod field;
 pub mod form;
+pub mod input_group;
 pub mod input_otp;
 pub mod item;
 pub mod kbd;
