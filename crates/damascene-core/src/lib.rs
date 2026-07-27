@@ -237,6 +237,7 @@ pub use widgets::item::{
     item, item_actions, item_content, item_description, item_footer, item_group, item_header,
     item_media, item_media_icon, item_separator, item_title,
 };
+pub use widgets::kbd::{KBD_HEIGHT, kbd, kbd_group};
 pub use widgets::list::{bullet_list, numbered_list, numbered_list_from, task_list};
 pub use widgets::menubar::{
     MenubarAction, menubar, menubar_content, menubar_group, menubar_icon, menubar_item,
