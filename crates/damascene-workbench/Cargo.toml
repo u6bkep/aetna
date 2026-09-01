@@ -18,6 +18,17 @@ name = "shell"
 path = "examples/shell.rs"
 doc = false
 
+# `test = true` builds this example as a test target too, so its
+# in-file `mod tests` (the per-view zero-lint guard) runs under
+# `cargo test -p damascene-workbench`. The alternative — the
+# hand-mirrored tree `tests/lint.rs` keeps for `shell` — would duplicate
+# four views' worth of anatomy and drift the first time one changed.
+[[example]]
+name = "data_table"
+path = "examples/data_table.rs"
+doc = false
+test = true
+
 [dependencies]
 # Mirrors damascene-carbon / damascene-fixtures: no bundled fonts on the
 # normal edge so downstream consumers can opt out (issue #49).

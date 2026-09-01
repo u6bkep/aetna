@@ -115,7 +115,12 @@
 //! ```
 //!
 //! Run the full example with
-//! `cargo run -p damascene-workbench --example shell`.
+//! `cargo run -p damascene-workbench --example shell`, and the dense
+//! data-table tour with
+//! `cargo run -p damascene-workbench --example data_table` — four views
+//! over `damascene_core::widgets::data_table` (plain, selectable +
+//! sorted + detail panel, grouped, and 10k virtualized) at the
+//! workbench's 29px row pitch.
 //!
 //! # Calibration
 //!
@@ -136,7 +141,11 @@
 //! First cut. Present: the palette, the dense metrics profile, and the
 //! chrome widgets core lacks. Deferred deliberately (see
 //! `docs/WORKBENCH_VISION.md`, "Non-goals for the first cut"): a shared
-//! split-tree, a stock tree view, and `data_table`.
+//! split-tree. The other two deferrals have since been spent — the
+//! stock tree view is `damascene_core::widgets::tree`, and `data_table`
+//! landed in core rather than here (`docs/WORKBENCH_VISION.md`,
+//! "`data_table` deferral lifted"), because a table's *behaviour* is
+//! not one of the four style signals this crate inverts.
 
 #![warn(missing_docs)]
 

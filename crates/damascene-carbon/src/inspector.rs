@@ -19,6 +19,13 @@ use damascene_core::prelude::*;
 use crate::theme;
 use crate::tokens as carbon;
 use crate::widgets::*;
+// Explicit, because core's prelude now also globs a `data_table` (the
+// behaving one, hoisted per `docs/WORKBENCH_VISION.md`'s lifted
+// deferral) and glob-vs-glob would be ambiguous. This demo means
+// Carbon's own column-spec-plus-cell-closure skeleton; retiring it in
+// favour of the core widget is the migration that document schedules,
+// not this one.
+use crate::widgets::data_table;
 
 /// Logical-pixel canvas the inspector renders at — matched to
 /// `damascene_fixtures::hero::HERO_LOGICAL_SIZE` so the dense and stock
