@@ -213,6 +213,7 @@ Non-goals for the first cut, deferred deliberately:
   design, on tree-view terms, later.
 - `data_table` in core. Same rule: hoist the style-neutral skeleton when
   the second consumer (eutectic's netlists/DRC tables) actually lands.
+  **Lifted 2026-07-28 — see below.**
 
 ## Open questions
 
@@ -264,3 +265,41 @@ to VS Code was never load-bearing for the four inversions. The key
 names stay because they remain the only name source for chrome
 (per the oracle registry); the values go because nothing but momentum
 held them.
+
+## `data_table` deferral lifted, 2026-07-28
+
+The first-cut scope deferred `data_table` in core behind "hoist the
+style-neutral skeleton when the second consumer actually lands." The
+condition is met and the deferral is spent; `damascene_core::widgets::data_table`
+ships. Recording it here so a future session reads the current law
+rather than the deferral.
+
+Chose-because:
+
+- **Second consumer landed, and it is not eutectic.** The Raven kiosk —
+  a dense instrument-panel desktop app — demands data-heavy tables on
+  all 11 of its redesigned pages, and named `table`'s missing behaviour
+  as its single largest widget gap. eutectic's netlists/DRC tables
+  remain the third.
+- **The measurement that motivated `TableColumn` kept going.** The
+  geometry slice was taken early because four validation apps re-minted
+  it; the same apps also re-minted the *behaviour* — `parts_v3.rs`
+  scrolls its whole table, header and all, because there was no
+  alternative, and its selection is a frozen `const SELECTED: usize`.
+- **The skeleton turned out to need no core mechanism.** Sticky header
+  and footer are a column of `[header, scroll(body), footer]` — the
+  scroll is a sibling, not an ancestor. That is what made the hoist
+  cheap enough to stop deferring: no `position: sticky` analogue, no
+  layout-pass change, no new primitive.
+
+What did *not* change: the style-neutrality rule. `data_table` is stock
+shadcn vocabulary sized by the `ComponentSize` ladder, so the workbench
+profile densifies it the same way it densifies everything else (`Xs`
+lands a 29px row pitch, against the reference corpus's `tbody tr {
+height: 28px }` plus its rule). The crate contributes values, not a
+second table.
+
+REJECTED again, and for the same reason as at ratification: putting the
+table in `damascene-workbench` instead. The four toy-diagnosis signals
+are values-and-recipes; a table's *behaviour* is neither, and shipping
+it in the opinion crate would make row selection an aesthetic choice.
