@@ -16,6 +16,7 @@
 //! - [`item`] — clickable resource row (recent file, repo, project, person, asset entry); `item([item_media_icon, item_content([item_title, item_description]), item_actions([...])])` inside `item_group([...])`
 //! - [`list`] — plain `bullet_list` / `numbered_list` / `task_list` for prose-style enumerations
 //! - [`table`] — structured tabular data; `table([table_header([table_row([table_head(...)])]), table_body([...])])`. Proportioned/aligned columns come from one shared `&[TableColumn]` spec via `table_header_cells(COLS, [...])` + `table_row_cells(key, COLS, [...])`; [`table_row_keyed`](table::table_row_keyed) for selectable / keyboard-operable rows (rows are `.focusable()`-safe — the ring sits inside)
+//! - [`data_table`] — `table`'s behaving sibling: sticky header/footer over an internal scroll, keyed focusable rows with vertical arrow-nav, detail + group rows, sort affordance, and a virtualized variant. `data_table_with(key, &cols, DataTableOpts::default().sort(state.sort), rows)` + `data_table::apply_event(&mut state, &event, key)`; columns are `DataColumn::fill("Value", 1.2).sortable()`
 //! - [`accordion`] — a stack of disclosure sections where opening one closes the rest; `accordion_item("group", "key", "Title", open, [...])` + `accordion::apply_event`
 //! - [`collapsible`] — one standalone disclosure section (accordion's single-item sibling); `collapsible("advanced", "Advanced", open, [...])` + `collapsible::apply_event(&mut open, &event, "advanced")`
 //!
@@ -94,6 +95,7 @@ pub mod checkbox;
 pub mod code_block;
 pub mod collapsible;
 pub mod command;
+pub mod data_table;
 pub mod dialog;
 pub mod dropdown_menu;
 pub mod editor_tabs;

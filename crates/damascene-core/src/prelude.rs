@@ -105,6 +105,12 @@ pub use crate::widgets::collapsible::{
 pub use crate::widgets::command::{
     self, command_group, command_icon, command_item, command_label, command_row, command_shortcut,
 };
+pub use crate::widgets::data_table::{
+    self, DEFAULT_ROW_ESTIMATE, DataColumn, DataTableAction, DataTableOpts, DataTableState, Sort,
+    SortDirection, column_geometry, data_body_key, data_detail_row, data_expand_key, data_expander,
+    data_footer_row, data_group_row, data_row, data_row_key, data_sort_key, data_table,
+    data_table_virtual, data_table_virtual_with, data_table_with, estimated_row_height,
+};
 pub use crate::widgets::dialog::{
     dialog, dialog_content, dialog_description, dialog_footer, dialog_header, dialog_title,
 };

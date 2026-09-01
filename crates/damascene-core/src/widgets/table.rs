@@ -54,8 +54,19 @@
 //! Oracle: TanStack Table / shadcn's `DataTable` recipe, whose
 //! `columns` array is exactly this — one positional spec the header and
 //! the rows both read. Deliberately geometry-only: no sort state, no
-//! selection model, no accessors. A full `data_table` stays deferred
-//! (`docs/WORKBENCH_VISION.md`) until a second real consumer lands.
+//! selection model, no accessors.
+//!
+//! # When to reach for [`data_table`] instead
+//!
+//! This module is anatomy without behaviour, and it owns no scroll: a
+//! `table` inside `scroll([...])` scrolls its header away with the
+//! rows. [`data_table`](crate::widgets::data_table) is the sibling that
+//! adds the behaving half — sticky header and footer (by keeping them
+//! outside an internal scroll), keyed focusable rows with vertical
+//! arrow-key navigation, expandable detail rows, group rows, a sort
+//! affordance, and a virtualized variant for large row sets. Reach for
+//! plain `table` for a short, static, hug-height table; reach for
+//! `data_table` as soon as the rows are data the user acts on.
 
 // Lock in full per-item documentation for this module (issue #73).
 #![warn(missing_docs)]
@@ -272,6 +283,21 @@ impl TableColumn {
         }
     }
 
+    /// A column `n` tabular digits wide — the CSS `ch` unit
+    /// ([`Size::Ch`]), resolved against the cell's own font.
+    ///
+    /// The numeric-gutter constructor: a five-digit reading holds the
+    /// same width whether it currently reads `7` or `12,480`, so a
+    /// column of live values stops twitching as the data changes.
+    /// Pair it with `.align_end()` and `.tabular_numerals()` on the
+    /// cell text.
+    pub const fn ch(n: f32) -> Self {
+        Self {
+            width: Size::Ch(n),
+            align: TextAlign::Start,
+        }
+    }
+
     /// Align this column's content to the leading edge (the default).
     /// Spelled out for symmetry in a `columns` array that mixes
     /// alignments.
@@ -395,7 +421,12 @@ where
 /// Anything else (a `Kind::Badge` pill, an image) has no horizontal
 /// alignment of its own — it stretches to the column, as the stock
 /// cell already does. Wrap it in a `row([...])` to position it.
-fn stamp_column(cell: El, col: Option<&TableColumn>) -> El {
+///
+/// `pub(crate)` so [`data_table`](crate::widgets::data_table) can stamp
+/// its footer row from the same routing rather than growing a second
+/// copy that drifts. Nothing here is privileged — it composes only
+/// public `El` builders, so a forked widget reproduces it verbatim.
+pub(crate) fn stamp_column(cell: El, col: Option<&TableColumn>) -> El {
     let Some(col) = col else {
         return cell;
     };
