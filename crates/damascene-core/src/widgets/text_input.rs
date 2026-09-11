@@ -1531,6 +1531,7 @@ mod tests {
             node_id: el.computed_id.clone(),
             rect: el.computed_rect,
             tooltip: None,
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             content_inset: el.content_inset(),
         }
@@ -1547,6 +1548,7 @@ mod tests {
             node_id: "root.text_input[ti]".into(),
             rect: Rect::new(20.0, 20.0, 400.0, 36.0),
             tooltip: None,
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             content_inset: el.content_inset(),
         }
@@ -1563,6 +1565,7 @@ mod tests {
             node_id: "root.slider[other]".into(),
             rect: Rect::new(0.0, 0.0, 200.0, 20.0),
             tooltip: None,
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             content_inset: Sides::zero(),
         };

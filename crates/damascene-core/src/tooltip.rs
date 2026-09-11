@@ -6,6 +6,15 @@
 //! synthesizes a floating tooltip layer at the El root, anchored to
 //! the trigger's laid-out rect. Pointer-leave or press dismisses.
 //!
+//! Clipped `.ellipsis()` text needs no `.tooltip()` at all: when its
+//! truncation fired, hit-testing snapshots the leaf's full content as
+//! the hovered target's tooltip (see
+//! [`crate::event::UiTarget::tooltip_anchor`]) and the layer anchors
+//! to the leaf. An explicit `.tooltip()` on the hit node still wins.
+//! Because that tooltip is derived rather than authored, it never
+//! demands the overlay root: on a non-overlay root it is silently
+//! skipped instead of tripping the assert below.
+//!
 //! The synthesized layer is appended to the user's tree before
 //! layout, so it goes through the normal layout / draw_ops / paint
 //! pipeline — no separate tooltip render pass. It carries
@@ -83,6 +92,13 @@ pub fn synthesize_tooltip(root: &mut El, ui_state: &UiState, now: Instant) -> bo
     let Some(text) = hover.tooltip.as_deref() else {
         return false;
     };
+    // A tooltip derived from clipped text was never asked for by the
+    // app, so it must not impose the overlay-root precondition (nor
+    // the assert / lint that teach it): no overlay root, no tooltip.
+    let derived = hover.tooltip_anchor.is_some();
+    if derived && root.axis != Axis::Overlay {
+        return false;
+    }
 
     if now.duration_since(started_at) < HOVER_DELAY {
         // Hover started but delay not elapsed — caller should keep
@@ -108,8 +124,18 @@ pub fn synthesize_tooltip(root: &mut El, ui_state: &UiState, now: Instant) -> bo
          Got axis = {:?}",
         root.axis,
     );
-    root.children
-        .push(tooltip_layer(text, hover.node_id.clone().to_string()));
+    // An authored tooltip anchors by id (survives a scroll between
+    // the hit-test frame and this one); a derived one belongs to an
+    // unkeyed leaf no id lookup can reach, so it anchors to the rect
+    // hit-testing snapshotted.
+    let anchor = match &hover.tooltip_anchor {
+        Some(leaf) => Anchor::Rect {
+            rect: leaf.rect,
+            side: crate::widgets::popover::Side::Below,
+        },
+        None => Anchor::below_id(hover.node_id.to_string()),
+    };
+    root.children.push(tooltip_layer(text, anchor));
     // Assign computed_ids to the pushed layer in-place so the
     // subsequent `layout_post_assign` doesn't have to re-walk the
     // whole tree just to id one new floating subtree. Pairs with
@@ -126,7 +152,7 @@ pub fn synthesize_tooltip(root: &mut El, ui_state: &UiState, now: Instant) -> bo
 /// styled panel) below the trigger, flipping above on viewport
 /// collision. Hit-test transparent — the layer doesn't block clicks
 /// on whatever is underneath.
-fn tooltip_layer(text: &str, anchor_id: String) -> El {
+fn tooltip_layer(text: &str, anchor: Anchor) -> El {
     let panel = tooltip_panel(text);
     El::new(Kind::Custom("tooltip_layer"))
         .child(panel)
@@ -139,7 +165,7 @@ fn tooltip_layer(text: &str, anchor_id: String) -> El {
             // hasn't, anchor_rect's None-fallback puts the panel at
             // the viewport origin, which is ugly but visible.
             let rect = anchor_rect(
-                &Anchor::below_id(&anchor_id),
+                &anchor,
                 (w, h),
                 ctx.container,
                 ctx.rect_of_id,
@@ -378,6 +404,133 @@ mod tests {
         ));
     }
 
+    const LONG: &str = "a value far too long to fit inside forty logical pixels";
+
+    /// Keyed row of unkeyed cells, one clipped, sitting to the right of
+    /// a spacer so the row's origin and the cell's origin differ.
+    fn clipped_row() -> El {
+        crate::row([
+            crate::text("lead").width(Size::Fixed(200.0)),
+            crate::text(LONG).ellipsis().width(Size::Fixed(40.0)),
+        ])
+        .height(Size::Fixed(24.0))
+        .key("row")
+    }
+
+    fn hover_clipped_cell(tree: &El, state: &mut UiState, now: Instant) -> Rect {
+        let cell = &tree.children[0].children[1];
+        let r = cell.computed_rect;
+        let target = crate::hit_test::hit_test_target(tree, state, (r.center_x(), r.center_y()))
+            .expect("row hit");
+        assert!(
+            target.tooltip_anchor.is_some(),
+            "fixture: fallback must fire"
+        );
+        state.set_hovered(Some(target), now);
+        r
+    }
+
+    fn find_by_kind<'a>(n: &'a El, kind: &str) -> Option<&'a El> {
+        if matches!(n.kind, Kind::Custom(k) if k == kind) {
+            return Some(n);
+        }
+        n.children.iter().find_map(|c| find_by_kind(c, kind))
+    }
+
+    /// A derived tooltip was never asked for, so a non-overlay root is
+    /// a silent no-op — not the assert an authored `.tooltip()` earns.
+    #[test]
+    fn derived_tooltip_is_silent_without_overlay_root() {
+        let mut tree = crate::column([clipped_row()]);
+        let mut state = UiState::new();
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 200.0));
+        let now = Instant::now();
+        hover_clipped_cell(&tree, &mut state, now);
+        assign_ids(&mut tree);
+        let before = tree.children.len();
+        let pending = synthesize_tooltip(
+            &mut tree,
+            &state,
+            now + HOVER_DELAY + Duration::from_millis(1),
+        );
+        assert!(!pending);
+        assert_eq!(
+            tree.children.len(),
+            before,
+            "no layer on a non-overlay root"
+        );
+    }
+
+    #[test]
+    fn derived_tooltip_anchors_to_the_clipped_leaf() {
+        let mut tree = crate::overlays(clipped_row(), std::iter::empty::<Option<El>>());
+        let mut state = UiState::new();
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 200.0));
+        let now = Instant::now();
+        let cell_rect = hover_clipped_cell(&tree, &mut state, now);
+        assign_ids(&mut tree);
+        let pending = synthesize_tooltip(
+            &mut tree,
+            &state,
+            now + HOVER_DELAY + Duration::from_millis(1),
+        );
+        assert!(!pending);
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 200.0));
+        let panel = find_by_kind(&tree, "tooltip_panel").expect("tooltip panel laid out");
+        let text = panel.children[0].text.as_deref();
+        assert_eq!(text, Some(LONG));
+        let pr = panel.computed_rect;
+        // `Side::Below` left-aligns with the anchor (the cell at x=200,
+        // not the row at x=0), then clamps to the viewport's right edge
+        // when the panel is wider than the room left of it.
+        let expected_x = cell_rect.x.min(400.0 - pr.w);
+        assert!(
+            (pr.x - expected_x).abs() <= 1.0,
+            "panel x {} should follow the clipped cell at x {} (clamped: {}), not the row at 0",
+            pr.x,
+            cell_rect.x,
+            expected_x
+        );
+        assert!(
+            pr.y >= cell_rect.bottom() - 1.0 || pr.bottom() <= cell_rect.y + 1.0,
+            "panel sits below (or flipped above) the cell, never over it"
+        );
+    }
+
+    #[test]
+    fn anchor_change_within_same_node_rearms_timer() {
+        let mut state = UiState::new();
+        let now = Instant::now();
+        let mk = |anchor: &str| UiTarget {
+            key: "row".into(),
+            node_id: "/row".into(),
+            rect: Rect::new(0.0, 0.0, 10.0, 10.0),
+            tooltip: Some("cell".into()),
+            tooltip_anchor: Some(crate::event::TooltipAnchor {
+                node_id: anchor.into(),
+                rect: Rect::new(0.0, 0.0, 10.0, 10.0),
+            }),
+            scroll_offset_y: 0.0,
+            content_inset: Sides::zero(),
+        };
+        assert!(state.set_hovered(Some(mk("/row.0")), now));
+        let started = state.tooltip.hover_started_at;
+        // Same node, same anchor: no change, timer keeps running.
+        assert!(!state.set_hovered(Some(mk("/row.0")), now + Duration::from_millis(50)));
+        assert_eq!(state.tooltip.hover_started_at, started);
+        // Same node, next cell: hover identity unchanged (no
+        // Leave/Enter for the runtime to pair) but the timer re-arms.
+        assert!(!state.set_hovered(Some(mk("/row.1")), now + Duration::from_millis(100)));
+        assert!(state.tooltip.hover_started_at > started);
+        // Dropping the derived tooltip clears text and anchor, keeps
+        // the hover.
+        state.drop_derived_tooltip();
+        let h = state.hovered.as_ref().unwrap();
+        assert_eq!(h.key, "row");
+        assert_eq!(h.tooltip, None);
+        assert_eq!(h.tooltip_anchor, None);
+    }
+
     /// The panic an author actually hits is the last teaching surface
     /// before they give up and delete the `.tooltip()` — so it must
     /// carry the one-line fix verbatim, not just the diagnosis. Pins
@@ -408,7 +561,11 @@ mod tests {
         assign_ids(&mut tree);
 
         let err = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            synthesize_tooltip(&mut tree, &state, now + HOVER_DELAY + Duration::from_millis(1));
+            synthesize_tooltip(
+                &mut tree,
+                &state,
+                now + HOVER_DELAY + Duration::from_millis(1),
+            );
         }))
         .expect_err("a non-overlay root must trip the debug assert");
         let msg = err
@@ -436,6 +593,7 @@ mod tests {
             node_id: "/a".into(),
             rect: Rect::new(0.0, 0.0, 10.0, 10.0),
             tooltip: None,
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             content_inset: Sides::zero(),
         };
@@ -444,6 +602,7 @@ mod tests {
             node_id: "/b".into(),
             rect: Rect::new(0.0, 0.0, 10.0, 10.0),
             tooltip: None,
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             content_inset: Sides::zero(),
         };

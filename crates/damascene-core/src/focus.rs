@@ -117,6 +117,7 @@ fn collect_focusable_self(node: &El, clip: Option<Rect>, out: &mut Vec<UiTarget>
             node_id: node.computed_id.clone(),
             rect: computed,
             tooltip: node.tooltip_text().map(str::to_string),
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             content_inset: node.content_inset(),
         });
@@ -184,6 +185,7 @@ fn collect_orders(
             node_id: node.computed_id.clone(),
             rect: computed,
             tooltip: node.tooltip_text().map(str::to_string),
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             content_inset: node.content_inset(),
         };
@@ -223,6 +225,7 @@ fn collect_selectable(node: &El, inherited_clip: Option<Rect>, out: &mut Vec<UiT
             node_id: node.computed_id.clone(),
             rect: computed,
             tooltip: node.tooltip_text().map(str::to_string),
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             content_inset: node.content_inset(),
         });
@@ -256,6 +259,7 @@ fn collect_focus(node: &El, inherited_clip: Option<Rect>, out: &mut Vec<UiTarget
             node_id: node.computed_id.clone(),
             rect: computed,
             tooltip: node.tooltip_text().map(str::to_string),
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             content_inset: node.content_inset(),
         });

@@ -1128,6 +1128,7 @@ mod tests {
             node_id: "/ta".to_string().into(),
             rect: crate::tree::Rect::new(0.0, 0.0, 200.0, 100.0),
             tooltip: None,
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             content_inset: ta_inset(),
         }
@@ -1153,6 +1154,7 @@ mod tests {
                 node_id: "/other".to_string().into(),
                 rect: crate::tree::Rect::new(0.0, 0.0, 200.0, 100.0),
                 tooltip: None,
+                tooltip_anchor: None,
                 scroll_offset_y: 0.0,
                 content_inset: crate::tree::Sides::zero(),
             }),

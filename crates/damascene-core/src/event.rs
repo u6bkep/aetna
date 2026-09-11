@@ -79,7 +79,24 @@ pub struct UiTarget {
     pub rect: Rect,
     /// Tooltip text snapshotted from the node when the target was
     /// constructed (see the struct docs for why it's cached).
+    ///
+    /// Resolved by hit-testing in this order: an explicit
+    /// [`El::tooltip`][method@crate::tree::El::tooltip] on the hit
+    /// node wins (unless it merely repeats the node's own, fully
+    /// visible text — see that method's docs); otherwise the full
+    /// content of a `.ellipsis()` text leaf under the pointer whose
+    /// truncation fired, anywhere inside the hit node's subtree.
     pub tooltip: Option<String>,
+    /// `Some` when `tooltip` was derived from clipped `.ellipsis()`
+    /// text rather than an explicit `.tooltip()`: the text leaf whose
+    /// full content `tooltip` holds. The tooltip layer anchors to that
+    /// leaf's rect instead of to `node_id` (the leaf is usually an
+    /// unkeyed cell inside a keyed row, so no id lookup can reach it),
+    /// and the hover-delay timer treats a change of leaf within the
+    /// same hit node as a fresh hover, so sweeping across a row's
+    /// cells re-arms per cell. `None` for explicit tooltips and for
+    /// hand-built targets.
+    pub tooltip_anchor: Option<TooltipAnchor>,
     /// Scroll offset of the deepest scroll subtree inside this hit
     /// target, in logical pixels. `0.0` for widgets that don't
     /// contain a scroll. Used by widgets like
@@ -108,6 +125,18 @@ pub struct UiTarget {
     /// `Sides::zero()` on hand-built targets that never went through a
     /// layout pass.
     pub content_inset: Sides,
+}
+
+/// The clipped text leaf an overflow tooltip belongs to — see
+/// [`UiTarget::tooltip_anchor`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct TooltipAnchor {
+    /// `computed_id` of the leaf; the tooltip's identity for the
+    /// hover-delay timer.
+    pub node_id: std::sync::Arc<str>,
+    /// The leaf's painted rect in logical pixels, in the same space as
+    /// [`UiTarget::rect`]; what the tooltip layer anchors below.
+    pub rect: Rect,
 }
 
 /// Which mouse button (or pointer button) generated a pointer event.

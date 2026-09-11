@@ -569,6 +569,7 @@ mod tests {
                 node_id: format!("/{key}").into(),
                 rect: Rect::new(0.0, 0.0, 8.0, 400.0),
                 tooltip: None,
+                tooltip_anchor: None,
                 scroll_offset_y: 0.0,
                 content_inset: Sides::zero(),
             }),

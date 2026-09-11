@@ -68,16 +68,46 @@ impl UiState {
     /// whether the host should redraw (cursor moves *within* the
     /// same hovered node are visual no-ops).
     pub(crate) fn set_hovered(&mut self, new: Option<UiTarget>, now: Instant) -> bool {
-        let same = match (&self.hovered, &new) {
+        let same_node = match (&self.hovered, &new) {
             (Some(a), Some(b)) => a.node_id == b.node_id,
             (None, None) => true,
             _ => false,
         };
-        if !same {
+        // Tooltip identity is finer than hover identity: a keyed row
+        // whose clipped cells each contribute their own overflow
+        // tooltip stays the same hovered node (the return value —
+        // which the runtime pairs Leave/Enter events on — is
+        // unchanged) while the pointer sweeps across it, but the
+        // tooltip re-arms per cell. Callers that must keep the redraw
+        // loop alive for the re-armed delay compare
+        // `tooltip.hover_started_at` across the call.
+        let same_tooltip = same_node
+            && match (&self.hovered, &new) {
+                (Some(a), Some(b)) => {
+                    a.tooltip_anchor.as_ref().map(|t| &t.node_id)
+                        == b.tooltip_anchor.as_ref().map(|t| &t.node_id)
+                }
+                _ => true,
+            };
+        if !same_tooltip {
             self.tooltip.hover_started_at = new.as_ref().map(|_| now);
             self.tooltip.dismissed_for_hover = false;
         }
         self.hovered = new;
-        !same
+        !same_node
+    }
+
+    /// Forget a tooltip derived from clipped text (see
+    /// [`UiTarget::tooltip_anchor`]) without touching hover identity.
+    /// Called after a scroll or zoom moved content under a resting
+    /// pointer: the snapshotted anchor rect no longer describes the
+    /// leaf, and the next pointer move re-derives it against the new
+    /// layout. Authored tooltips anchor by id and follow their node.
+    pub(crate) fn drop_derived_tooltip(&mut self) {
+        if let Some(h) = self.hovered.as_mut()
+            && h.tooltip_anchor.take().is_some()
+        {
+            h.tooltip = None;
+        }
     }
 }

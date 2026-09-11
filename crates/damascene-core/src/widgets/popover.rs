@@ -185,6 +185,20 @@ pub enum Anchor {
         /// [`Side::AtPoint`]).
         side: Side,
     },
+    /// Anchor to a logical-pixel rect the caller already holds. Used
+    /// when the trigger has no key and no id lookup can reach it — the
+    /// runtime's overflow tooltip anchors to the painted rect of the
+    /// unkeyed clipped-text leaf hit-testing found (see
+    /// [`crate::event::UiTarget::tooltip_anchor`]). Ids are the better
+    /// anchor when available: a rect snapshot describes the layout it
+    /// was taken from, so the runtime drops a rect-anchored tooltip
+    /// when a wheel scroll or zoom moves content under the pointer.
+    Rect {
+        /// The trigger's rect in logical pixels.
+        rect: Rect,
+        /// Which side of the rect the panel sits on.
+        side: Side,
+    },
 }
 
 impl Anchor {
@@ -284,6 +298,7 @@ pub fn anchor_rect(
             None => return Rect::new(viewport.x, viewport.y, w, h),
         },
         Anchor::Point { x, y, side } => (Rect::new(*x, *y, 0.0, 0.0), *side),
+        Anchor::Rect { rect, side } => (*rect, *side),
     };
 
     let (mut x, mut y) = match side {

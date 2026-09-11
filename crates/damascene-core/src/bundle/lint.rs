@@ -1254,7 +1254,7 @@ fn walk<'a>(
                     node_id: c.computed_id.clone().to_string(),
                     source: blame,
                     message:
-                        ".ellipsis() has no effect on Size::Hug text — Hug forces the rect to the intrinsic content width, so the truncation budget equals the content and no glyph is ever trimmed. Set Size::Fill(_) or Size::Fixed(_) on the text or on a wrapping container so the layout can constrain the rect."
+                        ".ellipsis() has no effect on Size::Hug text — Hug forces the rect to the intrinsic content width, so the truncation budget equals the content and no glyph is ever trimmed (and no overflow tooltip ever fires). Set Size::Fill(_) or Size::Fixed(_) on the text or on a wrapping container so the layout can constrain the rect."
                             .to_string(),
                 },
             );

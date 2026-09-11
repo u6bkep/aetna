@@ -753,6 +753,7 @@ mod tests {
                 node_id: "/settings/2".into(),
                 rect: Rect::new(0.0, 0.0, 60.0, 28.0),
                 tooltip: None,
+                tooltip_anchor: None,
                 scroll_offset_y: 0.0,
                 content_inset: Sides::zero(),
             }),

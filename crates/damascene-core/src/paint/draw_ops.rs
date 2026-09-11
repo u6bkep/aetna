@@ -663,6 +663,7 @@ fn push_node(
                         weight,
                         n.font_mono,
                         n.text_tabular_numerals,
+                        n.text_letter_spacing * paint_scale,
                         inner_painted_rect.w,
                     )
                 }

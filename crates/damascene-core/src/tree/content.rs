@@ -67,6 +67,21 @@ impl El {
     }
 
     /// Shorthand for `.text_overflow(TextOverflow::Ellipsis)`.
+    ///
+    /// Truncated text stays readable: when the ellipsis actually fires
+    /// for the laid-out width, hovering the text shows its full
+    /// content as a tooltip — with no `.tooltip()` and no `.key()`
+    /// needed, since hit-testing descends from the nearest keyed
+    /// ancestor (the table row, the list item) to the clipped leaf
+    /// under the pointer. Text that fits shows nothing. An explicit
+    /// `.tooltip()` on the hit node takes precedence. Like every
+    /// tooltip the layer needs an `Axis::Overlay` root to mount on;
+    /// unlike an authored one, this derived tooltip is silently absent
+    /// without it rather than a lint finding or an assert.
+    ///
+    /// Tailwind `truncate`; the hover behaviour is the data-view
+    /// convention (Ant Design's column `ellipsis` shows the title by
+    /// default, Naive UI's `n-ellipsis` defaults `tooltip` on).
     pub fn ellipsis(self) -> Self {
         self.text_overflow(TextOverflow::Ellipsis)
     }

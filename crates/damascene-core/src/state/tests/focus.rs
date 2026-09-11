@@ -22,6 +22,7 @@ fn stale_focus_clears_on_rebuild() {
         node_id: "root.missing".into(),
         rect: Rect::default(),
         tooltip: None,
+        tooltip_anchor: None,
         scroll_offset_y: 0.0,
         content_inset: Sides::zero(),
     });
@@ -60,6 +61,7 @@ fn set_focus_from_pointer_clears_on_non_focusable_target() {
         node_id: "root.card[card]".into(),
         rect: Rect::default(),
         tooltip: None,
+        tooltip_anchor: None,
         scroll_offset_y: 0.0,
         content_inset: Sides::zero(),
     }));

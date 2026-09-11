@@ -543,11 +543,16 @@ pub fn ellipsize_text(
         weight,
         mono,
         false,
+        0.0,
         available_width,
     )
 }
 
-/// [`ellipsize_text`] with an explicit proportional font family.
+/// [`ellipsize_text`] with an explicit proportional font family,
+/// tabular-numeral flag, and letter spacing (logical px per glyph
+/// gap, at the same scale as `size`). The measurement here must match
+/// the run that gets painted: tracked text ellipsized without its
+/// spacing would be trimmed too late and overflow its box.
 #[allow(clippy::too_many_arguments)]
 pub fn ellipsize_text_with_family(
     text: &str,
@@ -556,37 +561,34 @@ pub fn ellipsize_text_with_family(
     weight: FontWeight,
     mono: bool,
     tabular: bool,
+    letter_spacing: f32,
     available_width: f32,
 ) -> String {
     if available_width <= 0.0 || text.is_empty() {
         return String::new();
     }
-    let full = layout_text_with_family(
-        text,
-        size,
-        family,
-        weight,
-        mono,
-        tabular,
-        TextWrap::NoWrap,
-        None,
-    );
-    if full.width <= available_width + 0.5 {
+    let measure = |s: &str| {
+        layout_text_with_line_height_and_family(
+            s,
+            size,
+            line_height(size),
+            family,
+            weight,
+            mono,
+            tabular,
+            letter_spacing,
+            TextWrap::NoWrap,
+            None,
+        )
+        .width
+    };
+    let full = measure(text);
+    if full <= available_width + 0.5 {
         return text.to_string();
     }
 
     let ellipsis = "…";
-    let ellipsis_w = layout_text_with_family(
-        ellipsis,
-        size,
-        family,
-        weight,
-        mono,
-        tabular,
-        TextWrap::NoWrap,
-        None,
-    )
-    .width;
+    let ellipsis_w = measure(ellipsis);
     if ellipsis_w > available_width + 0.5 {
         return ellipsis.to_string();
     }
@@ -598,17 +600,7 @@ pub fn ellipsize_text_with_family(
         let mid = (lo + hi).div_ceil(2);
         let candidate: String = chars[..mid].iter().collect();
         let candidate = format!("{candidate}{ellipsis}");
-        let width = layout_text_with_family(
-            &candidate,
-            size,
-            family,
-            weight,
-            mono,
-            tabular,
-            TextWrap::NoWrap,
-            None,
-        )
-        .width;
+        let width = measure(&candidate);
         if width <= available_width + 0.5 {
             lo = mid;
         } else {
@@ -677,8 +669,16 @@ pub fn clamp_text_to_lines_with_family(
         .collect();
     if let Some(last) = lines.last_mut() {
         let marked = format!("{last}…");
-        *last =
-            ellipsize_text_with_family(&marked, size, family, weight, mono, false, available_width);
+        *last = ellipsize_text_with_family(
+            &marked,
+            size,
+            family,
+            weight,
+            mono,
+            false,
+            0.0,
+            available_width,
+        );
     }
     lines.join("\n")
 }
@@ -2157,6 +2157,33 @@ mod tests {
         assert!(
             width <= available + 0.5,
             "width={width} available={available}"
+        );
+    }
+
+    /// Tracked text is wider than its untracked measurement; the
+    /// ellipsizer must see the same width paint will draw.
+    #[test]
+    fn ellipsize_text_accounts_for_letter_spacing() {
+        let source = "TRACKED LABEL";
+        let untracked = line_width(source, 14.0, FontWeight::Regular, false);
+        let fits_untracked = untracked + 1.0;
+        let ellipsize = |spacing: f32| {
+            ellipsize_text_with_family(
+                source,
+                14.0,
+                FontFamily::default(),
+                FontWeight::Regular,
+                false,
+                false,
+                spacing,
+                fits_untracked,
+            )
+        };
+        assert_eq!(ellipsize(0.0), source);
+        let tracked = ellipsize(2.0);
+        assert!(
+            tracked.ends_with('…') && tracked.len() < source.len(),
+            "2px tracking must not fit in the untracked width; got {tracked:?}"
         );
     }
 

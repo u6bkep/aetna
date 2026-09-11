@@ -277,6 +277,14 @@ impl El {
     /// on `virtual_list_dyn` rows whose children are realized only
     /// during layout.
     ///
+    /// **Clipped text needs none of this.** A `.ellipsis()` text whose
+    /// truncation fired shows its full content on hover by itself,
+    /// through the nearest keyed ancestor — see
+    /// [`ellipsis`](Self::ellipsis). And the hand-written web idiom
+    /// `.ellipsis().tooltip(same_string)` is treated the same way: a
+    /// tooltip that only repeats the node's own text is silent while
+    /// that text is fully visible and fires once it is clipped.
+    ///
     /// Like every modifier, last-write-wins — but unlike `fill` or
     /// `padding`, no stock widget pre-sets a tooltip, so a second
     /// `.tooltip()` on the same element is always two app calls racing

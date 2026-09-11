@@ -86,6 +86,7 @@ pub(crate) fn target(node: &El, key: &str) -> UiTarget {
         node_id: found.computed_id.clone().to_string().into(),
         rect: found.computed_rect,
         tooltip: None,
+        tooltip_anchor: None,
         scroll_offset_y: 0.0,
         content_inset: found.content_inset(),
     }

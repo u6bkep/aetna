@@ -517,7 +517,12 @@ impl RunnerCore {
         // events on identity change. `set_hovered` mutates the state
         // and only returns whether identity flipped.
         let prev_hover = self.ui_state.hovered.clone();
+        let prev_tooltip_started = self.ui_state.tooltip.hover_started_at;
         let hover_changed = self.ui_state.set_hovered(hit, Instant::now());
+        // Same node, different clipped cell: hover identity (and so
+        // the Leave/Enter pair below) is unchanged, but the tooltip
+        // delay re-armed and needs the redraw loop alive to elapse.
+        let tooltip_rearmed = self.ui_state.tooltip.hover_started_at != prev_tooltip_started;
         // Track the link URL under the pointer separately from keyed
         // hover so the cursor resolver can flip to `Pointer` over text
         // runs that aren't themselves hit-test targets. A change here
@@ -614,6 +619,7 @@ impl RunnerCore {
                         let needs_redraw = hover_changed
                             || link_hover_changed
                             || band_hover_changed
+                            || tooltip_rearmed
                             || !out.is_empty();
                         return PointerMove {
                             events: out,
@@ -808,6 +814,7 @@ impl RunnerCore {
                         let needs_redraw = hover_changed
                             || link_hover_changed
                             || band_hover_changed
+                            || tooltip_rearmed
                             || !out.is_empty();
                         return PointerMove {
                             events: out,
@@ -866,6 +873,7 @@ impl RunnerCore {
         let needs_redraw = hover_changed
             || link_hover_changed
             || band_hover_changed
+            || tooltip_rearmed
             || !out.is_empty()
             || over_hover_scene
             || over_crosshair_plot;
@@ -2261,21 +2269,24 @@ impl RunnerCore {
         self.ui_state.cancel_scroll_momentum();
         // A 3D scene under the pointer takes the wheel as zoom, before any
         // scroll routing (so the scene doesn't also scroll its container).
-        if self.ui_state.camera_wheel_zoom(tree, x, y, dy) {
-            return true;
-        }
         // A `viewport()` under the pointer likewise consumes the wheel as
         // cursor-anchored zoom before scroll routing, so the canvas zooms
-        // instead of scrolling an enclosing container.
-        if self.ui_state.viewport_wheel_zoom(tree, x, y, dy) {
-            return true;
+        // instead of scrolling an enclosing container. A plot under the
+        // pointer consumes it as cursor-anchored zoom (the time axis, with
+        // Y auto-scaling), before scroll routing.
+        let consumed = self.ui_state.camera_wheel_zoom(tree, x, y, dy)
+            || self.ui_state.viewport_wheel_zoom(tree, x, y, dy)
+            || self.ui_state.plot_wheel_zoom(tree, x, y, dy)
+            || self.ui_state.pointer_wheel(tree, (x, y), dy);
+        if consumed {
+            // Content moved under a resting pointer: a tooltip derived
+            // from clipped text was anchored to a rect that is now
+            // stale. Hover identity is not refreshed on wheel (only on
+            // pointer move), so drop the tooltip rather than leave it
+            // pinned to where the cell used to be.
+            self.ui_state.drop_derived_tooltip();
         }
-        // A plot under the pointer consumes the wheel as cursor-anchored
-        // zoom (the time axis, with Y auto-scaling), before scroll routing.
-        if self.ui_state.plot_wheel_zoom(tree, x, y, dy) {
-            return true;
-        }
-        self.ui_state.pointer_wheel(tree, (x, y), dy)
+        consumed
     }
 
     /// Build a routed wheel event for the keyed target under `(x, y)`.
@@ -4343,6 +4354,66 @@ mod tests {
             off.needs_redraw,
             "leaving a hovered node still warrants a redraw",
         );
+    }
+
+    /// Sweeping across two clipped cells of one keyed row: the row
+    /// stays the hovered node (no Leave/Enter pair), the tooltip
+    /// re-arms per cell, and the move requests a redraw so the
+    /// re-armed delay can elapse.
+    #[test]
+    fn sweep_across_clipped_cells_rearms_tooltip_without_hover_events() {
+        const LONG: &str = "a value far too long to fit inside forty logical pixels";
+        let mut tree = crate::overlays(
+            crate::row([
+                crate::text(LONG)
+                    .ellipsis()
+                    .width(crate::tree::Size::Fixed(40.0)),
+                crate::text(LONG)
+                    .ellipsis()
+                    .width(crate::tree::Size::Fixed(40.0)),
+            ])
+            .height(crate::tree::Size::Fixed(24.0))
+            .key("row"),
+            std::iter::empty::<Option<El>>(),
+        );
+        let mut core = RunnerCore::new();
+        crate::layout::layout(
+            &mut tree,
+            &mut core.ui_state,
+            Rect::new(0.0, 0.0, 400.0, 200.0),
+        );
+        let mut t = PrepareTimings::default();
+        core.snapshot(&tree, &mut t);
+        let a = tree.children[0].children[0].computed_rect;
+        let b = tree.children[0].children[1].computed_rect;
+
+        let enter = core.pointer_moved(Pointer::moving(a.center_x(), a.center_y()));
+        assert!(
+            enter
+                .events
+                .iter()
+                .any(|e| e.kind == UiEventKind::PointerEnter)
+        );
+        let started = core.ui_state.tooltip.hover_started_at.expect("hover armed");
+        let hovered = core.ui_state.hovered.clone().expect("row hovered");
+        assert_eq!(hovered.key, "row");
+        assert_eq!(hovered.tooltip.as_deref(), Some(LONG));
+        let anchor_a = hovered.tooltip_anchor.expect("derived from cell A");
+
+        let sweep = core.pointer_moved(Pointer::moving(b.center_x(), b.center_y()));
+        assert!(
+            sweep.events.is_empty(),
+            "same hovered node must not pair Leave/Enter; got {:?}",
+            sweep.events.iter().map(|e| e.kind).collect::<Vec<_>>()
+        );
+        assert!(
+            sweep.needs_redraw,
+            "re-armed tooltip delay needs the loop alive"
+        );
+        let hovered = core.ui_state.hovered.clone().expect("row still hovered");
+        let anchor_b = hovered.tooltip_anchor.expect("derived from cell B");
+        assert_ne!(anchor_a.node_id, anchor_b.node_id);
+        assert!(core.ui_state.tooltip.hover_started_at.expect("re-armed") >= started);
     }
 
     #[test]

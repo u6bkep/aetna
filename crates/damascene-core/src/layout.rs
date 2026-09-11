@@ -3893,6 +3893,34 @@ pub(crate) fn text_layout(
     ))
 }
 
+/// Did this node's `.ellipsis()` fire for the rect layout gave it?
+///
+/// The single truncation predicate: `draw_ops` ellipsizes with the
+/// same budget (the node's own border box, *not* the padded content
+/// box — glyphs may legitimately spill into the padding band) at
+/// painted scale. `El::scale` multiplies the rect and the font size
+/// together, so it cancels; an enclosing `viewport()` zoom does not —
+/// layout bakes it into `computed_rect` while paint applies it to
+/// the font — so the caller passes the node's inherited
+/// `content_scale` (the product of enclosing viewport zooms, `1.0`
+/// outside any viewport) and the text width is scaled to match.
+/// Hit-testing uses it to decide whether a clipped text leaf exposes
+/// its full content as a tooltip.
+///
+/// `false` for non-text nodes, wrapped text, `TextOverflow::Clip`,
+/// and text that fits.
+pub(crate) fn ellipsis_truncated(c: &El, content_scale: f32) -> bool {
+    if c.text_wrap != TextWrap::NoWrap || c.text_overflow != TextOverflow::Ellipsis {
+        return false;
+    }
+    let Some(layout) = text_layout(c, None) else {
+        return false;
+    };
+    // Same slack `text_metrics::ellipsize_text_with_family` allows
+    // before it trims.
+    layout.width * content_scale > c.computed_rect.w + 0.5
+}
+
 fn display_text_for_measure(c: &El, text: &str, available_width: Option<f32>) -> String {
     if let (TextWrap::Wrap, Some(max_lines), Some(width)) =
         (c.text_wrap, c.text_max_lines, available_width)

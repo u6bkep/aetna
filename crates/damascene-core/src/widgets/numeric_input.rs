@@ -615,6 +615,7 @@ mod tests {
                 node_id: format!("/{target_key}").into(),
                 rect: Rect::new(0.0, 0.0, 100.0, 32.0),
                 tooltip: None,
+                tooltip_anchor: None,
                 scroll_offset_y: 0.0,
                 content_inset: Sides::zero(),
             }),
@@ -900,6 +901,7 @@ mod tests {
                 node_id: format!("/{key}").into(),
                 rect: Rect::new(0.0, 0.0, 100.0, 32.0),
                 tooltip: None,
+                tooltip_anchor: None,
                 scroll_offset_y: 0.0,
                 content_inset: Sides::zero(),
             }),
@@ -1290,6 +1292,7 @@ mod tests {
             node_id: "/n:field".into(),
             rect: Rect::new(20.0, 0.0, 160.0, 32.0),
             tooltip: None,
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             // The stamped inset of the inner field at the stock rung,
             // i.e. what hit_test would snapshot — not `SPACE_3`.

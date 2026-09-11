@@ -121,6 +121,7 @@ fn find_target_by_key(root: &El, key: &str) -> Option<UiTarget> {
             node_id: root.computed_id.clone(),
             rect: Rect::default(),
             tooltip: root.tooltip_text().map(str::to_string),
+            tooltip_anchor: None,
             scroll_offset_y: 0.0,
             content_inset: root.content_inset(),
         });

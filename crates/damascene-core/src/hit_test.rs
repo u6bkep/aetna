@@ -12,6 +12,14 @@
 //! flags this case as
 //! [`crate::bundle::lint::FindingKind::DeadTooltip`].
 //!
+//! Clipped `.ellipsis()` text is the one exception to "hover lands on
+//! the keyed node only": once the keyed winner is chosen,
+//! [`hit_test_target`] descends its subtree for a text leaf under the
+//! pointer whose truncation fired and snapshots that leaf's full
+//! content as the target's tooltip (see [`UiTarget::tooltip_anchor`]).
+//! Table cells and list titles are unkeyed by convention, so this is
+//! what makes a clipped value readable without keying every cell.
+//!
 //! Reads computed rects from `UiState`'s layout side map (populated by
 //! the layout pass) — the tree carries identity (`computed_id`) but not
 //! geometry. Paint-time transforms (`translate`, `scale`) are then
@@ -28,7 +36,7 @@ use crate::selection::SelectionPoint;
 use crate::state::UiState;
 use crate::text::metrics;
 use crate::theme::tokens;
-use crate::tree::{El, FontWeight, Kind, Rect, Sides, TextWrap};
+use crate::tree::{El, FontWeight, Kind, Rect, Sides, TextOverflow, TextWrap};
 
 /// Find the topmost keyed node whose effective hit rect contains
 /// `point` (logical pixels). Returns `None` if the point hits no keyed
@@ -40,10 +48,119 @@ pub fn hit_test(root: &El, ui_state: &UiState, point: (f32, f32)) -> Option<Stri
 
 /// Find the topmost keyed node and return full target metadata.
 pub fn hit_test_target(root: &El, ui_state: &UiState, point: (f32, f32)) -> Option<UiTarget> {
-    match hit_test_rec(root, ui_state, point, None, (0.0, 0.0)) {
-        Hit::Target(c) => Some(c.target),
+    match hit_test_rec(root, ui_state, point, None, (0.0, 0.0), 1.0) {
+        Hit::Target(c) => {
+            let mut target = c.target;
+            if target.tooltip.is_none()
+                && let Some((leaf, rect)) = truncated_text_leaf_at(
+                    c.node,
+                    ui_state,
+                    point,
+                    c.inherited_clip,
+                    c.inherited_translate,
+                    c.content_scale,
+                )
+            {
+                target.tooltip = leaf.text.clone();
+                target.tooltip_anchor = Some(crate::event::TooltipAnchor {
+                    node_id: leaf.computed_id.clone(),
+                    rect,
+                });
+            }
+            Some(target)
+        }
         Hit::Blocked | Hit::Miss => None,
     }
+}
+
+/// The tooltip an explicit `.tooltip()` on `node` contributes to its
+/// hit target. On single-line `.ellipsis()` text, a tooltip that
+/// merely repeats the node's own text — the web `truncate` + `title`
+/// idiom, written by hand — is silent while that text is fully
+/// visible, and fires only once the ellipsis has actually trimmed it;
+/// repeating visible text in a tooltip is never the wanted result.
+/// Any other text, and same-text tooltips on text clipped by other
+/// means (`TextOverflow::Clip`, a clipping parent), win
+/// unconditionally — there the library cannot tell whether the text
+/// is readable.
+fn explicit_tooltip(node: &El, content_scale: f32) -> Option<String> {
+    let tip = node.tooltip_text()?;
+    if node.text_wrap == TextWrap::NoWrap
+        && node.text_overflow == TextOverflow::Ellipsis
+        && node.text.as_deref() == Some(tip)
+        && !crate::layout::ellipsis_truncated(node, content_scale)
+    {
+        return None;
+    }
+    Some(tip.to_string())
+}
+
+/// The content scale `node`'s children inherit: a `viewport()` folds
+/// its zoom in, everything else passes the factor through. Mirrors
+/// `draw_ops::push_node`'s `child_content_scale`.
+fn child_content_scale(node: &El, ui_state: &UiState, content_scale: f32) -> f32 {
+    match &node.viewport {
+        Some(_) => content_scale * ui_state.viewport_view(&node.computed_id).zoom,
+        None => content_scale,
+    }
+}
+
+/// Deepest text leaf under `point` inside `node`'s subtree whose
+/// `.ellipsis()` fired for its laid-out rect, with its painted rect.
+/// Same clip / translate / scale rules as [`hit_test_rec`], seeded
+/// with the context the winner was visited under, so a leaf inside a
+/// scrolled-away row is not found. Children are visited in reverse
+/// paint order so the topmost leaf wins.
+fn truncated_text_leaf_at<'a>(
+    node: &'a El,
+    ui_state: &UiState,
+    point: (f32, f32),
+    inherited_clip: Option<Rect>,
+    inherited_translate: (f32, f32),
+    content_scale: f32,
+) -> Option<(&'a El, Rect)> {
+    if let Some(clip) = inherited_clip
+        && !clip.contains(point.0, point.1)
+    {
+        return None;
+    }
+    let total_translate = (
+        inherited_translate.0 + node.translate.0,
+        inherited_translate.1 + node.translate.1,
+    );
+    let painted_rect =
+        scaled_around_center(translated(node.computed_rect, total_translate), node.scale);
+    let child_clip = if node.clip {
+        match inherited_clip {
+            Some(clip) => Some(
+                clip.intersect(painted_rect)
+                    .unwrap_or(Rect::new(0.0, 0.0, 0.0, 0.0)),
+            ),
+            None => Some(painted_rect),
+        }
+    } else {
+        inherited_clip
+    };
+    let child_scale = child_content_scale(node, ui_state, content_scale);
+    for child in node.children.iter().rev() {
+        if let Some(leaf) = truncated_text_leaf_at(
+            child,
+            ui_state,
+            point,
+            child_clip,
+            total_translate,
+            child_scale,
+        ) {
+            return Some(leaf);
+        }
+    }
+    if node.text.is_some()
+        && painted_rect.contains(point.0, point.1)
+        && crate::layout::ellipsis_truncated(node, content_scale)
+    {
+        return Some((node, painted_rect));
+    }
+    None
 }
 
 /// A candidate hit: the node's `UiTarget` plus the squared distance
@@ -52,13 +169,25 @@ pub fn hit_test_target(root: &El, ui_state: &UiState, point: (f32, f32)) -> Opti
 /// point only reached this node via `hit_overflow` or the min-touch
 /// auto-inflation. Squared so picking the best candidate stays
 /// allocation-free and `sqrt`-free.
-struct Candidate {
+struct Candidate<'a> {
     target: UiTarget,
     distance_sq: f32,
+    /// The hit node itself plus the *inherited* clip / translate it
+    /// was visited under (not its own child context — the fallback
+    /// walk re-applies the node's own transform), so
+    /// [`hit_test_target`] can resolve the clipped-text tooltip
+    /// fallback once, on the winner only, rather than walking every
+    /// keyed ancestor's subtree on the way up.
+    node: &'a El,
+    inherited_clip: Option<Rect>,
+    inherited_translate: (f32, f32),
+    /// Product of enclosing `viewport()` zooms at the node — see
+    /// [`crate::layout::ellipsis_truncated`].
+    content_scale: f32,
 }
 
-enum Hit {
-    Target(Candidate),
+enum Hit<'a> {
+    Target(Candidate<'a>),
     /// A descendant declared `block_pointer` and no keyed target above
     /// it claimed the hit. Stops the click from leaking up to ancestors
     /// or earlier siblings.
@@ -66,13 +195,14 @@ enum Hit {
     Miss,
 }
 
-fn hit_test_rec(
-    node: &El,
+fn hit_test_rec<'a>(
+    node: &'a El,
     ui_state: &UiState,
     point: (f32, f32),
     inherited_clip: Option<Rect>,
     inherited_translate: (f32, f32),
-) -> Hit {
+    content_scale: f32,
+) -> Hit<'a> {
     if let Some(clip) = inherited_clip
         && !clip.contains(point.0, point.1)
     {
@@ -121,8 +251,16 @@ fn hit_test_rec(
     // been recorded yet; once a higher-z child has claimed a target,
     // a lower-z descendant's `block_pointer` is irrelevant.
     let mut best: Option<Candidate> = None;
+    let child_scale = child_content_scale(node, ui_state, content_scale);
     for child in node.children.iter().rev() {
-        match hit_test_rec(child, ui_state, point, child_clip, total_translate) {
+        match hit_test_rec(
+            child,
+            ui_state,
+            point,
+            child_clip,
+            total_translate,
+            child_scale,
+        ) {
             Hit::Target(c) => {
                 best = Some(better(best, c));
             }
@@ -170,7 +308,8 @@ fn hit_test_rec(
                 key: key.clone(),
                 node_id: node.computed_id.clone(),
                 rect: painted_rect,
-                tooltip: node.tooltip_text().map(str::to_string),
+                tooltip: explicit_tooltip(node, content_scale),
+                tooltip_anchor: None,
                 scroll_offset_y: nearest_descendant_scroll_offset_y(node, ui_state),
                 // Scaled like `painted_rect` (and like
                 // `draw_ops::push_node` scales the paint-time inset),
@@ -179,6 +318,10 @@ fn hit_test_rec(
                 content_inset: node.content_inset().scaled(node.scale),
             },
             distance_sq: point_distance_sq_from_rect(point, painted_rect),
+            node,
+            inherited_clip,
+            inherited_translate,
+            content_scale,
         };
         return Hit::Target(promote_under_block(
             better(best, self_candidate),
@@ -204,11 +347,11 @@ fn hit_test_rec(
 /// in the gap between sidebar buttons inside a modal dismissed the
 /// modal because the buttons' inflated hit landed at `dsq>0` and the
 /// scrim siblings claimed `dsq=0`.
-fn promote_under_block(c: Candidate, blocking: bool) -> Candidate {
+fn promote_under_block(c: Candidate<'_>, blocking: bool) -> Candidate<'_> {
     if blocking {
         Candidate {
-            target: c.target,
             distance_sq: 0.0,
+            ..c
         }
     } else {
         c
@@ -220,7 +363,7 @@ fn promote_under_block(c: Candidate, blocking: bool) -> Candidate {
 /// caller walks children in reverse paint order, "first-recorded"
 /// means "higher z", which preserves the z-stacking semantic for
 /// overlays and lifted children.
-fn better(existing: Option<Candidate>, incoming: Candidate) -> Candidate {
+fn better<'a>(existing: Option<Candidate<'a>>, incoming: Candidate<'a>) -> Candidate<'a> {
     match existing {
         Some(prev) if prev.distance_sq <= incoming.distance_sq => prev,
         _ => incoming,
@@ -1288,6 +1431,140 @@ mod tests {
         let r = find_text_rect(&tree).expect("text rect");
         let center = (r.x + r.w * 0.5, r.y + r.h * 0.5);
         assert!(hit_test(&tree, &state, center).is_none());
+    }
+
+    const LONG: &str = "a value far too long to fit inside forty logical pixels";
+
+    /// Keyed row, unkeyed cells — the stock `table_row` / `table_cell`
+    /// shape. Hovering the clipped cell lands on the row (keyed-only
+    /// rule) but snapshots the cell's full text, anchored to the cell.
+    #[test]
+    fn clipped_ellipsis_cell_supplies_row_tooltip() {
+        let mut tree = row([
+            crate::text(LONG).ellipsis().width(Size::Fixed(40.0)),
+            crate::text("ok").ellipsis().width(Size::Fixed(200.0)),
+        ])
+        .key("row");
+        let mut state = UiState::new();
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 100.0));
+        let clipped = &tree.children[0];
+        let fits = &tree.children[1];
+        assert!(
+            crate::layout::ellipsis_truncated(clipped, 1.0),
+            "fixture: 40px must clip the long value"
+        );
+        assert!(!crate::layout::ellipsis_truncated(fits, 1.0));
+        // Under a viewport zoom layout has baked the zoom into the
+        // rect while the font stays logical: at 0.5× a 40px content
+        // width paints in 20px, so a 40px rect fits it; at 2× a
+        // 200px rect no longer holds the 200px content.
+        assert!(
+            !crate::layout::ellipsis_truncated(clipped, 0.1),
+            "zoomed far out, the long value paints inside 40px"
+        );
+        assert!(
+            crate::layout::ellipsis_truncated(fits, 20.0),
+            "zoomed far in, even \"ok\" overflows 200px"
+        );
+
+        let r = clipped.computed_rect;
+        let t = hit_test_target(&tree, &state, (r.center_x(), r.center_y())).expect("row hit");
+        assert_eq!(t.key, "row");
+        assert_eq!(t.tooltip.as_deref(), Some(LONG));
+        let anchor = t
+            .tooltip_anchor
+            .as_ref()
+            .expect("derived tooltip carries its leaf");
+        assert_eq!(anchor.node_id, clipped.computed_id);
+        assert_eq!(anchor.rect, clipped.computed_rect);
+
+        let r = fits.computed_rect;
+        let t = hit_test_target(&tree, &state, (r.center_x(), r.center_y())).expect("row hit");
+        assert_eq!(t.key, "row");
+        assert_eq!(t.tooltip, None, "text that fits contributes no tooltip");
+        assert_eq!(t.tooltip_anchor, None);
+    }
+
+    /// The fallback walk starts from the winner with the transform the
+    /// winner was visited under; a translated, clipping row must find
+    /// its cell at the translated location exactly once.
+    #[test]
+    fn overflow_fallback_honours_row_translate_and_clip() {
+        let mut tree = column(
+            [row([crate::text(LONG).ellipsis().width(Size::Fixed(40.0))])
+                .key("row")
+                .width(Size::Fixed(60.0))
+                .height(Size::Fixed(24.0))
+                .clip()
+                .translate(120.0, 30.0)],
+        );
+        let mut state = UiState::new();
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 200.0));
+        let cell = &tree.children[0].children[0];
+        let r = translated(cell.computed_rect, (120.0, 30.0));
+        let t = hit_test_target(&tree, &state, (r.center_x(), r.center_y())).expect("row hit");
+        assert_eq!(t.key, "row");
+        let anchor = t
+            .tooltip_anchor
+            .as_ref()
+            .expect("clipped cell found at its painted spot");
+        assert_eq!(anchor.node_id, cell.computed_id);
+        assert_eq!(
+            anchor.rect, r,
+            "anchor rect is the painted (translated) rect"
+        );
+        // Untranslated location: nothing there.
+        let u = cell.computed_rect;
+        assert!(hit_test_target(&tree, &state, (u.center_x(), u.center_y())).is_none());
+    }
+
+    #[test]
+    fn explicit_tooltip_on_hit_node_beats_overflow_fallback() {
+        let mut tree = row([crate::text(LONG).ellipsis().width(Size::Fixed(40.0))])
+            .key("row")
+            .tooltip("authored");
+        let mut state = UiState::new();
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 400.0, 100.0));
+        let r = tree.children[0].computed_rect;
+        let t = hit_test_target(&tree, &state, (r.center_x(), r.center_y())).expect("row hit");
+        assert_eq!(t.tooltip.as_deref(), Some("authored"));
+        assert_eq!(t.tooltip_anchor, None);
+    }
+
+    /// The hand-written web idiom (`truncate` + `title` with the same
+    /// string) is silent while the text is fully visible and fires
+    /// once the ellipsis has trimmed it.
+    #[test]
+    fn same_text_tooltip_is_silent_until_clipped() {
+        for (width, expect) in [(400.0, None), (40.0, Some(LONG))] {
+            let mut tree = column([crate::text(LONG)
+                .key("t")
+                .ellipsis()
+                .tooltip(LONG)
+                .width(Size::Fixed(width))]);
+            let mut state = UiState::new();
+            layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 500.0, 100.0));
+            let r = tree.children[0].computed_rect;
+            let t = hit_test_target(&tree, &state, (r.center_x(), r.center_y())).expect("hit");
+            assert_eq!(t.tooltip.as_deref(), expect, "width {width}");
+            assert_eq!(t.tooltip_anchor, None, "explicit tooltips carry no anchor");
+        }
+    }
+
+    /// Text clipped by means other than `.ellipsis()` keeps a
+    /// same-text tooltip unconditionally — the library can't tell
+    /// whether it is readable.
+    #[test]
+    fn same_text_tooltip_survives_on_clip_overflow() {
+        let mut tree = column([crate::text(LONG)
+            .key("t")
+            .tooltip(LONG)
+            .width(Size::Fixed(400.0))]);
+        let mut state = UiState::new();
+        layout(&mut tree, &mut state, Rect::new(0.0, 0.0, 500.0, 100.0));
+        let r = tree.children[0].computed_rect;
+        let t = hit_test_target(&tree, &state, (r.center_x(), r.center_y())).expect("hit");
+        assert_eq!(t.tooltip.as_deref(), Some(LONG));
     }
 
     #[test]
